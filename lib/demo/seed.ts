@@ -576,10 +576,13 @@ export function createSeed(now: Date = new Date()): DState {
   }
   // the r5 overrun beyond its hold: charged until the wallet was empty, the rest is outstanding
   const TARGET_AVAILABLE: Record<string, number | "zero"> = { "w-house": 2480, "w-r1": 0.4, "w-r2": 1240, "w-r3": 18, "w-r4": "zero", "w-r5": "zero", "w-r6": 85 };
-  const TOPUP_DAYS = [-88, -62, -35, -12];
   let receiptSeq = 0;
 
-  for (const w of s.wallets) {
+  for (const [wi, w] of s.wallets.entries()) {
+    // top-ups every 10–12 days, staggered per wallet
+    // (the first one on the first seeded day, so no charge comes before it)
+    const TOPUP_DAYS: number[] = [-(DAYS - 1)];
+    for (let d = -80 + ((wi * 3) % 7); d <= -3; d += 10 + (wi % 3)) TOPUP_DAYS.push(d);
     const charges = (chargesByWallet.get(w.id) ?? new Array<number>(DAYS).fill(0)).map((v) => round2(v));
     if (w.id === "w-r5") charges[DAYS - 1]! -= 14.37; // the uncovered part never hit the ledger
     const totalCharges = charges.reduce((a, b) => a + b, 0);

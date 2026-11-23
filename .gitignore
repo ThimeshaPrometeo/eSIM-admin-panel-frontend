@@ -1,7 +1,7 @@
 node_modules/
 .next/
-out/
-coverage/
+/out/
+/coverage/
 .env*
 !.env.example
 *.tsbuildinfo

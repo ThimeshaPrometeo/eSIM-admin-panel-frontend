@@ -46,7 +46,7 @@ export function StatBlock({
   /** Change vs the previous period, as a fraction (0.12 = +12%). */
   delta?: number;
   hint?: string;
-  size?: "lg" | "display";
+  size?: "sm" | "lg" | "display";
   loading?: boolean;
 }) {
   return (
@@ -60,7 +60,7 @@ export function StatBlock({
           format={format}
           className={cn(
             "whitespace-nowrap font-semibold tracking-[-0.02em]",
-            size === "display" ? "text-[32px] leading-9 sm:text-display" : "text-[24px] leading-8 sm:text-[30px] sm:leading-9",
+            size === "display" ? "text-[32px] leading-9 sm:text-display" : size === "sm" ? "text-[22px] leading-7" : "text-[24px] leading-8 sm:text-[30px] sm:leading-9",
           )}
         />
       )}

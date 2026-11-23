@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Scan this folder explicitly: a folder named "coverage" is often ignored as test output. */
+@source "../app/(workspace)/esim/coverage";
 
 /* Desktop sign-in fits the viewport: `fit` locks it to one screen, `short`,
    `tiny` and `mini` tighten it on shorter desktop screens. */

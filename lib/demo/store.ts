@@ -10,7 +10,6 @@ import { createSeed } from "./seed";
 const KEY = `esim-demo:v${SCHEMA_VERSION}`;
 let state: DState | null = null;
 const listeners = new Set<() => void>();
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function load(): DState | null {
   if (typeof window === "undefined") return null;
@@ -49,10 +48,9 @@ export function db(): DState {
   return state;
 }
 
-/** Save (debounced) and notify subscribers after a change. */
+/** Save and notify subscribers after a change. Saved at once, so a reload right after an action keeps it. */
 export function commit() {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(save, 120);
+  save();
   listeners.forEach((l) => l());
 }
 

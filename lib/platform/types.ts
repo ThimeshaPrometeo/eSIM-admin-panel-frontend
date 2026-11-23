@@ -411,13 +411,62 @@ export type DashboardData = {
     revenue: Money | null;
     previous: { activeEsims: number; dataUsedBytes: number; revenue: Money | null };
   };
-  usage: { date: string; bytes: number; estimated: boolean }[];
+  /** Per bucket (day, month or year): final and estimated bytes. */
+  usage: { bucket: string; finalBytes: number; estimatedBytes: number }[];
   monthly: { month: string; bytes: number }[];
   status: { key: "active" | "suspended" | "expired" | "pending" | "in_stock"; count: number }[];
   plansSold: { name: string; count: number }[];
-  transactions: { date: string; credits: number; debits: number }[];
+  transactions: { bucket: string; credits: number; debits: number }[];
   topEsims: { id: string; iccid: string; bytes: number }[];
   byCountry: { iso2: string; country: string; bytes: number }[];
-  revenue: { date: string; revenue: number; cost: number; profit: number }[] | null;
+  revenue: { bucket: string; revenue: number; cost: number; profit: number }[] | null;
   recentCountries: string[];
 };
+
+export type CoverageCountry = {
+  iso2: string;
+  name: string;
+  networkCount: number;
+  pricedCount: number;
+  lte: boolean;
+  nr: boolean;
+  planCount: number;
+  /** The viewer's cheapest price per MB in this country (null = nothing priced). */
+  fromPerMb: number | null;
+};
+
+export type CoverageCountryDetail = {
+  iso2: string;
+  name: string;
+  networks: PricedNetwork[];
+  plans: { id: string; name: string; dataBytes: number; validityDays: number; zoneName: string }[];
+  zones: { id: string; name: string; demoZone: boolean; usable: boolean }[];
+  priceBasis: "own" | "cost";
+};
+
+export type PriceListRow = PricedNetwork & {
+  zones: string[];
+  /** Admin/staff with a reseller picked: that reseller's price per MB. */
+  resellerPricePerMb?: number | null;
+  /** Admin/staff: retail price per MB for direct sales. */
+  retailPricePerMb?: number | null;
+};
+
+export type PriceList = {
+  rows: PriceListRow[];
+  syncedAt: string;
+  version: number;
+  /** own = the viewer's own prices (reseller side); cost = supplier cost (admin/staff). */
+  basis: "own" | "cost";
+  resellerName: string | null;
+};
+
+export type ZoneNetworkPrice = PricedNetwork & { costPerMb: number | null; examples: { resellerName: string; pricePerMb: number | null }[] };
+
+export type PlanDetail = Plan & { networks: ZoneNetworkPrice[]; countries: string[]; resellerPlans: number };
+
+export type AuditEntry = { id: string; actor: string; action: string; summary: string; createdAt: string };
+
+export type DocumentRow = { id: string; number: string; kind: "statement" | "receipt" | "invoice"; title: string; amount: Money; issuedAt: string };
+
+export type PermissionContext = { envelope: Grants; resellerName: string | null };

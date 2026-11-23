@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "../motion/use-reduced-motion";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,6 +46,15 @@ export function useDrawOnce() {
   return { ref, inView, animate: !reduced, duration: 1100 };
 }
 
+/**
+ * Inside <ChartFill>, charts fill their grid cell instead of a fixed height
+ * (the desktop dashboard fits one screen).
+ */
+const ChartFillContext = createContext<{ action?: ReactNode } | null>(null);
+export function ChartFill({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return <ChartFillContext.Provider value={{ action }}>{children}</ChartFillContext.Provider>;
+}
+
 export function ChartFrame({
   title,
   description,
@@ -68,15 +77,16 @@ export function ChartFrame({
   className?: string;
 }) {
   const { ref, inView, animate, duration } = useDrawOnce();
+  const fill = useContext(ChartFillContext);
   return (
-    <section className={cn("glass-card flex min-w-0 flex-col p-4 sm:p-6", className)}>
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <section className={cn("glass-card flex min-w-0 flex-col p-4 sm:p-6", fill && "h-full min-h-0 sm:p-4 sm:pb-3", className)}>
+      <header className={cn("mb-5 flex flex-wrap items-start justify-between gap-3", fill && "mb-2 flex-nowrap gap-2 [&_h3]:text-body [&_p]:truncate")}>
         <div className="min-w-0">
           <h3 className="text-section font-semibold">{title}</h3>
           {description ? <p className="mt-0.5 text-small text-fg-2">{description}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          {legend?.map((l) => (
+          {!fill && legend?.map((l) => (
             <span key={l.label} className="inline-flex items-center gap-2 text-small text-fg-2">
               <span
                 className="h-2 w-3 rounded-full"
@@ -90,9 +100,10 @@ export function ChartFrame({
             </span>
           ))}
           {action}
+          {fill?.action}
         </div>
       </header>
-      <div ref={ref} style={{ height }} className="min-w-0">
+      <div ref={ref} style={fill ? undefined : { height }} className={cn("min-w-0", fill && "min-h-0 flex-1")}>
         {loading ? (
           <Skeleton className="h-full w-full rounded-control" />
         ) : empty ? (
@@ -101,6 +112,19 @@ export function ChartFrame({
           children({ animate, duration })
         ) : null}
       </div>
+      {fill && legend?.length ? (
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+          {legend.map((l) => (
+            <span key={l.label} className="inline-flex items-center gap-1.5 text-[11px] text-fg-2">
+              <span
+                className="h-1.5 w-2.5 rounded-full"
+                style={l.dashed ? { backgroundImage: `repeating-linear-gradient(90deg, ${l.color} 0 3px, transparent 3px 5px)` } : { background: l.color }}
+              />
+              {l.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
