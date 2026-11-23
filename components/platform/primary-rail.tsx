@@ -24,7 +24,7 @@ export function PrimaryRail({
       <NavIndicatorList watch={activeId} className="flex w-full flex-col items-center gap-1 px-2" indicatorClassName="!rounded-[14px]">
         {sections.map((s) => {
           const active = s.id === activeId;
-          const first = s.tabs.find((t) => t.ready) ?? s.tabs[0]!;
+          const first = s.tabs[0]!;
           return (
             <Link
               key={s.id}

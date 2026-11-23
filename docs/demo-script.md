@@ -1,12 +1,12 @@
 # Demo script
 
-The suggested client demo (spec §15), about 15 minutes, on demo data. Every step changes the demo store, so
+The suggested client demo (spec §15), about 20 minutes, on demo data. Every step changes the demo store, so
 it can be shown in order. Before starting: **user menu → Reset demo data**, dark theme, a desktop browser at
 1440 × 900 or larger (every page fits one screen there).
 
 Sign in with any password and any 6-digit code. Usernames: `nadeesha` (admin), `kasun` (staff, Support),
 `amaya` (reseller, Lanka Roam Travels), `sahan` (assistant), `dilini` (new staff colleague: forced password
-change). The role switcher in the user menu changes role without signing out.
+change, then the 2FA set-up prompt), `ishara` (locked assistant). The role switcher in the user menu changes role without signing out.
 
 ## 1. Sign in (1 min)
 
@@ -74,12 +74,53 @@ change). The role switcher in the user menu changes role without signing out.
 - **View as Assistant** (Sahan): the navigation now includes **Finance**; Team management never appears for
   assistants.
 
+## 9. Money: from Yesim's price to profit (5 min)
+
+As **Admin**. One formula prices everything: **reseller price per MB = Yesim €/MB × (1 + markup) × (1 −
+discount)**, with the rates in force on the day the data was used. Every page below comes from the same
+rated usage lines, so the figures agree to the cent.
+
+1. **Products → Price list → Price breakdown.** Lanka Roam Travels is selected: for each network the Yesim
+   €/MB, their markup (25%), discount (5%), their price per MB and per GB, our profit per GB and the margin.
+   Click **Blue Horizon Tours** and **Nomad Connect** to compare three resellers side by side.
+2. **Simulator** tab: reseller **Lanka Roam Travels**, country **Italy**, **1 GB**. The table shows each
+   Italian network; the right-hand card writes the formula out in plain numbers (Yesim cost → markup →
+   discount → what they pay → our profit). Switch the reseller to **Direct sale** to show the retail price.
+3. **Change a markup.** **Resellers → Lanka Roam Travels → Change markup**: 25% → **30%**, reason "Higher
+   support cost". The dialog says it rates usage **from tomorrow**; charges already made keep the markup of
+   their day.
+4. **See their price change.** Back to **Price list → Price breakdown**: Lanka Roam's prices are up 4%
+   (1.30 ÷ 1.25). **History → Markup changes** lists the change with who, when, why and from which day.
+   **History → Yesim price versions** shows what changed in Yesim's list in version 14 (4 networks up, 4
+   down) and what each reseller pays now.
+5. **A usage charge's breakdown.** **Finance → Transactions**, a **Usage charge** row → **How was this
+   charged?**: the day's network lines with MB, the Yesim rate, our cost, markup and discount, the charge, our
+   profit, the price list version, estimated or final. (Also from eSIM detail: the "€… charged" link on a
+   plan.) As **Reseller**, the same button shows only their own price and charge.
+6. **The monthly statement.** **Finance → Invoices**, type **Statement**, open Lanka Roam Travels' last
+   month: opening balance + top-ups − usage = closing balance. Click a usage line: the same breakdown for
+   that day. **Download PDF** carries the "Downloaded by …" watermark (switchable per document type in
+   **System → Settings**).
+7. **The profit waterfall.** **Finance → Profit and costs**: revenue, Yesim cost, profit, margin for the last
+   30 days; the waterfall goes Yesim cost + markup − discounts = revenue → profit. **Breakdown**: by
+   reseller, country, network or plan with margins, highest and lowest. **Reconciliation**: deposits to
+   Yesim minus our cost of usage against the balance Yesim reports (within the €5 tolerance).
+
 ## Other moments, if there's time
 
 - **eSIM detail** (admin): **Show PIN and PUK** (audit-logged), plan actions (extend, add data, block,
   delete), **Set end of life** needs the ICCID typed.
 - **Being verified**: sell as admin with "Simulate the supplier's answer: No answer"; the order opens with
   **Resolve as completed** (enter the ICCID) or **Resolve as failed** (hold released).
+- **Operations** (admin): **Usage** per eSIM with CSV/PDF; **Inventory** with the 90-day stock trend and
+  the low-stock warning; **Alerts and rules** (acknowledge, resolve, the 80% and 100% rules); **System →
+  Yesim connection** (jobs, Sync now, balance check, link to what changed).
+- **People and security**: **Users** (Ishara is locked: **Unlock**; **Reset two-factor** needs a reason);
+  **Staff roles** (the matrix stops at what staff may have); **Audit log** (open a markup change: before
+  and after); **Profile and security** (authenticator app, recovery codes, passkeys, sign out everywhere).
+- **First sign-in**: sign out, sign in as `dilini`: new password, then the 2FA set-up prompt with QR code
+  and key, then recovery codes. **Forgot password?** on the sign-in page shows the reset flow (the demo
+  shows the link instead of emailing it).
 - **Theme**: the sun/moon button; every page has a light theme.
 - **Phone**: the bottom navigation and section tabs.
 

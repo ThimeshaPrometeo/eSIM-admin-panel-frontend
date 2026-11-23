@@ -16,7 +16,7 @@ import { LogoMark } from "./logo-mark";
 import { MobileBottomNav, MobileSecondaryNav } from "./mobile-nav";
 import { NotificationBell } from "./notification-bell";
 import { PrimaryRail } from "./primary-rail";
-import { AccessDenied, ComingSoon } from "./route-states";
+import { AccessDenied } from "./route-states";
 import { SecondaryColumn } from "./secondary-column";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
@@ -26,7 +26,7 @@ import { UserMenu } from "./user-menu";
  * + secondary column + top bar; phones and tablets a top bar, section tabs
  * and bottom navigation. Also the route guard (routes.md §5): signed out →
  * sign in with ?next=, forced password change → that screen, no permission
- * → access denied in place, not built yet → coming soon.
+ * → access denied in place.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const { status, me, isDemo, wallet } = usePlatform();
@@ -105,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main id="main" className={cn("min-w-0 flex-1 px-4 pb-28 pt-6 md:px-8 lg:px-10 lg:pb-6 lg:pt-4")}>
           <div className="mx-auto w-full max-w-[1240px]">
-            {access?.kind === "denied" ? <AccessDenied /> : access?.kind === "coming_soon" ? <ComingSoon title={access.tab.label} /> : children}
+            {access?.kind === "denied" ? <AccessDenied /> : children}
           </div>
         </main>
       </div>

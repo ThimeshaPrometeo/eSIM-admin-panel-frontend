@@ -24,14 +24,14 @@ input-otp.
 |---|---|---|
 | `AppShell` | adapt `telephony/app-shell.tsx` | Rail + secondary column (lg+), glass top bar below lg, skip link, `<AmbientBackground>` behind content. No module accent colours (we have one accent) |
 | `PrimaryRail` | adapt `telephony/primary-rail.tsx` | Sections with icons, group dividers, hover-to-preview a section, gliding active indicator, glass |
-| `SecondaryColumn` | adapt `telephony/secondary-column.tsx` | Tabs of the active/hovered section; "Coming soon" disabled tabs |
+| `SecondaryColumn` | adapt `telephony/secondary-column.tsx` | Tabs of the active/hovered section |
 | `MobileBottomNav`, `MobileSecondaryNav` | adapt `telephony/mobile-bottom-nav.tsx`, `mobile-secondary-nav.tsx` | Same breakpoints and clearance variable as the SIP panel |
 | `UserMenu` | adapt `telephony/user-menu.tsx` | + role switcher and "Reset demo data" (demo) |
 | `NotificationBell` | adapt `telephony/notification-bell.tsx` | |
 | `ThemeToggle` | adapt `telephony/theme-toggle.tsx` | Dark default |
 | `DemoBadge` | new | |
 | `RouteGuard`, `PermissionGate` | new (SIP checks permissions inline) | |
-| `AccessDenied`, `ComingSoon`, `NotFound`, `ErrorState` | new | Glowing line illustrations |
+| `AccessDenied`, `NotFound`, `ErrorState` | new | Glowing line illustrations |
 
 ## 3. Building blocks (Phase 1)
 

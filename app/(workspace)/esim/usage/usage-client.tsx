@@ -129,7 +129,7 @@ export function UsageClient() {
     <FitPage>
       <PageHeader
         title="Usage"
-        description={isTenant ? "Data used per eSIM, what it was charged and what it cost us at Yesim. Today and yesterday stay estimated until the nightly report." : "Data used per eSIM and what it cost you. Today and yesterday stay estimated until the nightly report."}
+        description={isTenant ? "Data used per eSIM, what its wallet was charged (direct sales: the house wallet, at Yesim cost) and what it cost us at Yesim. Revenue and profit are in Profit and costs." : "Data used per eSIM and what it cost you. Today and yesterday stay estimated until the nightly report."}
         actions={
           <>
             <Button variant="secondary" size="sm" disabled={!data?.rows.length} onClick={() => download("csv")}>

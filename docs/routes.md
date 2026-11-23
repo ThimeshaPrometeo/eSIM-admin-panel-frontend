@@ -2,8 +2,7 @@
 
 Every route, who can open it, the permission that guards it, the `lib/api` functions it calls and the main
 components. Function names follow backend `endpoints.md` (path in brackets). Spec section numbers in the
-first column. **Demo** = built for the client demo (spec §15); the rest show as disabled "Coming soon" nav
-items until after the demo.
+first column. **Demo** = the phase that built it; every route is built.
 
 Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** assistant (limited by toggles).
 
@@ -100,6 +99,6 @@ their discount is already inside their prices (Q-RDISC).
 
 `<RouteGuard module level>` in each `*-client.tsx` (or derived from `nav-config` by pathname):
 1. not signed in → `/` with `?next=`;
-2. `mustChangePassword` → `/login/change-password`;
-3. missing permission → `AccessDenied` in the shell (URL unchanged);
-4. demo-scope "Coming soon" route → `ComingSoon` empty state.
+2. `mustChangePassword` → `/login/change-password`, then the 2FA set-up prompt (`/login/setup-2fa`) for
+   accounts without an authenticator app or passkey;
+3. missing permission → `AccessDenied` in the shell (URL unchanged).

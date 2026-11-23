@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "./primitives";
 import { GlassCard } from "./glass-card";
 
 /** Shown in place (URL unchanged) when the signed-in user may not open this page (spec 5.4). */
@@ -21,28 +20,5 @@ export function AccessDenied() {
         </Button>
       </div>
     </GlassCard>
-  );
-}
-
-/** Pages outside the demo scope (spec 15): a calm placeholder, never a half-built page. */
-export function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-title font-semibold">{title}</h1>
-      </header>
-      <GlassCard>
-        <EmptyState
-          illustration="signal"
-          title="Coming soon"
-          description={`${title} isn't part of this demo yet. It arrives after the demo, on the same design.`}
-          action={
-            <Button asChild variant="secondary">
-              <Link href="/esim/dashboard">Back to the dashboard</Link>
-            </Button>
-          }
-        />
-      </GlassCard>
-    </div>
   );
 }

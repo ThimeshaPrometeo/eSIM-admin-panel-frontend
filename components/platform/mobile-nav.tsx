@@ -17,8 +17,7 @@ export function MobileSecondaryNav({ section }: { section: NavSection | null }) 
     <nav aria-label={section.label} className="glass-bar sticky top-16 z-30 -mt-px border-b border-border lg:hidden">
       <div className="flex gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none]">
         {section.tabs.map((t) =>
-          t.ready ? (
-            <Link
+          <Link
               key={t.id}
               href={t.href}
               aria-current={t.id === active ? "page" : undefined}
@@ -28,13 +27,7 @@ export function MobileSecondaryNav({ section }: { section: NavSection | null }) 
               )}
             >
               {t.label}
-            </Link>
-          ) : (
-            <span key={t.id} aria-disabled="true" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-body text-fg-3">
-              {t.label}
-              <span className="text-[11px]">· Soon</span>
-            </span>
-          ),
+            </Link>,
         )}
       </div>
     </nav>
@@ -54,7 +47,7 @@ export function MobileBottomNav({ sections, activeId }: { sections: NavSection[]
         <ul className="mx-auto flex max-w-xl items-stretch justify-around px-2">
           {shown.map((s) => {
             const active = s.id === activeId;
-            const first = s.tabs.find((t) => t.ready) ?? s.tabs[0]!;
+            const first = s.tabs[0]!;
             return (
               <li key={s.id} className="flex-1">
                 <Link href={first.href} aria-current={active ? "page" : undefined} className={cn("flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium", active ? "text-fg" : "text-fg-3")}>
@@ -86,16 +79,9 @@ export function MobileBottomNav({ sections, activeId }: { sections: NavSection[]
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {s.tabs.map((t) =>
-                    t.ready ? (
-                      <Link key={t.id} href={t.href} onClick={() => setMore(false)} className="glass-card flex h-12 items-center px-4 text-body font-medium">
+                    <Link key={t.id} href={t.href} onClick={() => setMore(false)} className="glass-card flex h-12 items-center px-4 text-body font-medium">
                         {t.label}
-                      </Link>
-                    ) : (
-                      <span key={t.id} className="flex h-12 items-center justify-between rounded-card border border-border px-4 text-body text-fg-3">
-                        {t.label}
-                        <span className="text-[11px]">Soon</span>
-                      </span>
-                    ),
+                      </Link>,
                   )}
                 </div>
               </div>

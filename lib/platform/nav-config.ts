@@ -1,8 +1,7 @@
 /**
  * Navigation (spec 5.4): sections with tabs, one tree per role family.
  * A tab shows when the user can `view` one of its modules; a section without
- * visible tabs is hidden. Tabs not built for the demo show as disabled
- * "Coming soon" items (spec 15). The route guard reads the same tree, so the
+ * visible tabs is hidden. The route guard reads the same tree, so the
  * navigation and direct URL access always agree.
  */
 import type { LucideIcon } from "lucide-react";
@@ -28,30 +27,28 @@ export type NavTab = {
   href: string;
   /** Visible with `view` on any of these. */
   modules: Module[];
-  /** Built for the demo; otherwise a disabled "Coming soon" item. */
-  ready: boolean;
 };
 export type NavSection = { id: string; label: string; short: string; icon: LucideIcon; tabs: NavTab[] };
 
-const tab = (id: string, label: string, href: string, modules: Module[], ready: boolean): NavTab => ({ id, label, href, modules, ready });
+const tab = (id: string, label: string, href: string, modules: Module[]): NavTab => ({ id, label, href, modules });
 
 /** Orders follows Sell eSIM or Transactions (backend; backlog BB-1). */
 const ORDERS: Module[] = ["sell_esim", "transactions"];
 
 export const TENANT_NAV: NavSection[] = [
-  { id: "overview", label: "Overview", short: "Overview", icon: LayoutGrid, tabs: [tab("dashboard", "Dashboard", "/esim/dashboard", ["dashboard"], true)] },
+  { id: "overview", label: "Overview", short: "Overview", icon: LayoutGrid, tabs: [tab("dashboard", "Dashboard", "/esim/dashboard", ["dashboard"])] },
   {
     id: "esims",
     label: "eSIM management",
     short: "eSIMs",
     icon: Smartphone,
     tabs: [
-      tab("esims", "All eSIMs", "/esim/esims", ["esims"], true),
-      tab("sell", "Sell eSIM", "/esim/sell", ["sell_esim"], true),
-      tab("orders", "Orders", "/esim/orders", ORDERS, true),
-      tab("usage", "Usage", "/esim/usage", ["usage"], true),
-      tab("inventory", "Inventory", "/esim/inventory", ["inventory"], true),
-      tab("alerts", "Alerts and rules", "/esim/alerts", ["alerts"], true),
+      tab("esims", "All eSIMs", "/esim/esims", ["esims"]),
+      tab("sell", "Sell eSIM", "/esim/sell", ["sell_esim"]),
+      tab("orders", "Orders", "/esim/orders", ORDERS),
+      tab("usage", "Usage", "/esim/usage", ["usage"]),
+      tab("inventory", "Inventory", "/esim/inventory", ["inventory"]),
+      tab("alerts", "Alerts and rules", "/esim/alerts", ["alerts"]),
     ],
   },
   {
@@ -60,10 +57,10 @@ export const TENANT_NAV: NavSection[] = [
     short: "Products",
     icon: Package,
     tabs: [
-      tab("plans", "Plans", "/esim/plans", ["plans"], true),
-      tab("coverage", "Coverage", "/esim/coverage", ["coverage"], true),
-      tab("price-list", "Price list", "/esim/price-list", ["price_lists"], true),
-      tab("discounts", "Discounts", "/esim/discounts", ["discounts"], true),
+      tab("plans", "Plans", "/esim/plans", ["plans"]),
+      tab("coverage", "Coverage", "/esim/coverage", ["coverage"]),
+      tab("price-list", "Price list", "/esim/price-list", ["price_lists"]),
+      tab("discounts", "Discounts", "/esim/discounts", ["discounts"]),
     ],
   },
   {
@@ -72,9 +69,9 @@ export const TENANT_NAV: NavSection[] = [
     short: "Resellers",
     icon: Building2,
     tabs: [
-      tab("resellers", "Resellers", "/esim/resellers", ["resellers"], true),
-      tab("customers", "Customers", "/esim/customers", ["customers"], true),
-      tab("assistants", "Assistants", "/esim/assistants", ["assistants"], true),
+      tab("resellers", "Resellers", "/esim/resellers", ["resellers"]),
+      tab("customers", "Customers", "/esim/customers", ["customers"]),
+      tab("assistants", "Assistants", "/esim/assistants", ["assistants"]),
     ],
   },
   {
@@ -83,11 +80,11 @@ export const TENANT_NAV: NavSection[] = [
     short: "Finance",
     icon: Wallet,
     tabs: [
-      tab("wallets", "Wallets", "/esim/wallets", ["wallets"], true),
-      tab("transactions", "Transactions", "/esim/transactions", ["transactions"], true),
-      tab("topup-requests", "Top-up requests", "/esim/topup-requests", ["topup_requests"], true),
-      tab("invoices", "Invoices", "/esim/invoices", ["invoices"], true),
-      tab("profit", "Profit and costs", "/esim/profit", ["profit_reports"], true),
+      tab("wallets", "Wallets", "/esim/wallets", ["wallets"]),
+      tab("transactions", "Transactions", "/esim/transactions", ["transactions"]),
+      tab("topup-requests", "Top-up requests", "/esim/topup-requests", ["topup_requests"]),
+      tab("invoices", "Invoices", "/esim/invoices", ["invoices"]),
+      tab("profit", "Profit and costs", "/esim/profit", ["profit_reports"]),
     ],
   },
   {
@@ -96,8 +93,8 @@ export const TENANT_NAV: NavSection[] = [
     short: "Users",
     icon: Users,
     tabs: [
-      tab("users", "Users", "/esim/users", ["users"], true),
-      tab("staff-roles", "Staff roles", "/esim/staff-roles", ["staff_roles"], true),
+      tab("users", "Users", "/esim/users", ["users"]),
+      tab("staff-roles", "Staff roles", "/esim/staff-roles", ["staff_roles"]),
     ],
   },
   {
@@ -106,25 +103,25 @@ export const TENANT_NAV: NavSection[] = [
     short: "System",
     icon: Server,
     tabs: [
-      tab("settings", "Settings", "/esim/settings", ["settings"], true),
-      tab("yesim", "Yesim connection", "/esim/yesim", ["yesim_connection"], true),
-      tab("audit-log", "Audit log", "/esim/audit-log", ["audit_log"], true),
+      tab("settings", "Settings", "/esim/settings", ["settings"]),
+      tab("yesim", "Yesim connection", "/esim/yesim", ["yesim_connection"]),
+      tab("audit-log", "Audit log", "/esim/audit-log", ["audit_log"]),
     ],
   },
 ];
 
 export const RESELLER_NAV: NavSection[] = [
-  { id: "overview", label: "Overview", short: "Overview", icon: LayoutGrid, tabs: [tab("dashboard", "Dashboard", "/esim/dashboard", ["dashboard"], true)] },
+  { id: "overview", label: "Overview", short: "Overview", icon: LayoutGrid, tabs: [tab("dashboard", "Dashboard", "/esim/dashboard", ["dashboard"])] },
   {
     id: "sales",
     label: "Sales",
     short: "Sales",
     icon: ShoppingBag,
     tabs: [
-      tab("sell", "Sell eSIM", "/esim/sell", ["sell_esim"], true),
-      tab("my-plans", "My plans", "/esim/my-plans", ["reseller_plans"], true),
-      tab("coverage", "Coverage", "/esim/coverage", ["coverage"], true),
-      tab("price-list", "Price list", "/esim/price-list", ["price_lists"], true),
+      tab("sell", "Sell eSIM", "/esim/sell", ["sell_esim"]),
+      tab("my-plans", "My plans", "/esim/my-plans", ["reseller_plans"]),
+      tab("coverage", "Coverage", "/esim/coverage", ["coverage"]),
+      tab("price-list", "Price list", "/esim/price-list", ["price_lists"]),
     ],
   },
   {
@@ -133,35 +130,35 @@ export const RESELLER_NAV: NavSection[] = [
     short: "eSIMs",
     icon: Smartphone,
     tabs: [
-      tab("esims", "My eSIMs", "/esim/esims", ["esims"], true),
-      tab("orders", "Orders", "/esim/orders", ORDERS, true),
-      tab("usage", "Usage", "/esim/usage", ["usage"], true),
+      tab("esims", "My eSIMs", "/esim/esims", ["esims"]),
+      tab("orders", "Orders", "/esim/orders", ORDERS),
+      tab("usage", "Usage", "/esim/usage", ["usage"]),
       // spec 8.9: resellers and assistants see alerts for their own eSIMs (view only)
-      tab("alerts", "Alerts", "/esim/alerts", ["alerts"], true),
+      tab("alerts", "Alerts", "/esim/alerts", ["alerts"]),
     ],
   },
-  { id: "customers", label: "Customer management", short: "Customers", icon: Contact, tabs: [tab("customers", "Customers", "/esim/customers", ["customers"], true)] },
+  { id: "customers", label: "Customer management", short: "Customers", icon: Contact, tabs: [tab("customers", "Customers", "/esim/customers", ["customers"])] },
   {
     id: "finance",
     label: "Finance",
     short: "Finance",
     icon: Wallet,
     tabs: [
-      tab("wallet", "Wallet", "/esim/wallet", ["wallets"], true),
-      tab("transactions", "Transactions", "/esim/transactions", ["transactions"], true),
-      tab("invoices", "Invoices", "/esim/invoices", ["invoices"], true),
+      tab("wallet", "Wallet", "/esim/wallet", ["wallets"]),
+      tab("transactions", "Transactions", "/esim/transactions", ["transactions"]),
+      tab("invoices", "Invoices", "/esim/invoices", ["invoices"]),
     ],
   },
-  { id: "team", label: "Team management", short: "Team", icon: UsersRound, tabs: [tab("assistants", "Assistants", "/esim/assistants", ["team"], true)] },
+  { id: "team", label: "Team management", short: "Team", icon: UsersRound, tabs: [tab("assistants", "Assistants", "/esim/assistants", ["team"])] },
   {
     id: "settings",
     label: "Settings",
     short: "Settings",
     icon: UserCog,
     tabs: [
-      tab("profile", "Profile", "/profile", [], true),
-      tab("security", "Security", "/profile/security", [], true),
-      tab("notifications", "Notifications", "/notifications", [], true),
+      tab("profile", "Profile", "/profile", []),
+      tab("security", "Security", "/profile/security", []),
+      tab("notifications", "Notifications", "/notifications", []),
     ],
   },
 ];
@@ -197,13 +194,12 @@ export function findTab(tree: NavSection[], pathname: string): { section: NavSec
 
 export type RouteAccess =
   | { kind: "ok"; section: NavSection; tab: NavTab }
-  | { kind: "coming_soon"; section: NavSection; tab: NavTab }
   | { kind: "denied" }
   | { kind: "unknown" };
 
 /**
  * Route guard decision for a workspace path (routes.md §5): a path in the
- * user's own tree with permission is ok (or "Coming soon" when not built);
+ * user's own tree with permission is ok;
  * a path without permission, or one that belongs only to the other role
  * family (e.g. /esim/wallets for a reseller), is denied.
  */
@@ -211,7 +207,7 @@ export function routeAccess(role: Role, perms: Permissions, pathname: string): R
   const own = findTab(navTree(role), pathname);
   if (own) {
     if (!tabVisible(own.tab, perms)) return { kind: "denied" };
-    return own.tab.ready ? { kind: "ok", ...own } : { kind: "coming_soon", ...own };
+    return { kind: "ok", ...own };
   }
   const other = findTab(role === "admin" || role === "staff" ? RESELLER_NAV : TENANT_NAV, pathname);
   // pages for everyone (own profile, notifications) are open even when only the other tree lists them
