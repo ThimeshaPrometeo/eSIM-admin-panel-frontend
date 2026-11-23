@@ -126,6 +126,11 @@ proxy.ts
 - **Price formula** (demo store only): reseller €/MB on a network = Yesim €/MB × (1 + markup) × (1 − discount);
   the most specific discount wins (reseller + plan over reseller only). Blank Yesim price = network
   unavailable, never 0.
+- **Rating** (spec 8.32, demo store: `lib/demo/rating.ts` only): every usage line is one plan, one day, one
+  network, with the Yesim price, markup and discount **in force on that day**. A plan's charge for a day is
+  its lines summed and rounded to the cent once. Ledger, holds, statements, dashboard and profit are all
+  built from these lines, so pages agree to the cent (pinned by tests). Markup, discount and retail markup
+  changes apply from the **next day**; past charges never change.
 - **Dates:** UTC ISO strings from the API; shown in the user's time zone (tenant default Asia/Colombo) with
   relative times where helpful. Formatting only through `lib/platform/dates.ts`.
 - **Estimated** amounts always carry an "Estimated" chip until final (D82).
@@ -150,7 +155,9 @@ Each status maps to a label, a chip tone (`positive` Emerald = active/success/fi
 
 - "Top-up" = topping up a **wallet**. Putting a plan on an eSIM = **"Add plan"** (D26). Never mix them.
 - "Being verified" in the UI = `needs_check` in the API.
-- "Reseller" = our reseller. Yesim is "the supplier" in UI copy (except on the Yesim connection page).
+- "Reseller" = our reseller. Yesim is "the supplier" in operational copy. Financial pages for admin and staff
+  (price breakdown, simulator, charge breakdown, profit and costs, price history, reconciliation) and the
+  Yesim connection page name Yesim, so the cost side reads plainly. Reseller-facing copy never names it.
 - Sentence case everywhere; no all-caps labels, no eyebrow text.
 - A button and its toast use the same verb: "Suspend eSIM" → "eSIM suspended".
 - Errors say what happened and how to fix it. Map backend error codes to messages in `lib/api/errors.ts`.

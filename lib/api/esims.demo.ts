@@ -11,9 +11,10 @@
 import { ApiError } from "./errors";
 import { NETWORK_BY_ID, zoneNetworks } from "@/lib/demo/catalogue";
 import { ledgerRow, lowWalletCheck } from "@/lib/demo/billing";
+import { forEachPackageDay } from "@/lib/demo/rating";
 import { available, esimView, walletOfReseller } from "@/lib/demo/derive";
 import type { DEsim, DOrder, DPackage, DState } from "@/lib/demo/model";
-import { buyerPricePerMb, holdFor, round2, type Buyer } from "@/lib/demo/pricing";
+import { holdFor, round2, type Buyer } from "@/lib/demo/pricing";
 import { createRng, luhn } from "@/lib/demo/rng";
 import { read, write } from "@/lib/demo/run";
 import { SMDP_ADDRESS } from "@/lib/demo/seed";
@@ -203,6 +204,7 @@ function placeOrder(c: Caller, input: SellInput, opts: { esimId: string | null; 
     state: startNow ? "active" : "pending_activation",
     adminBlocked: false,
     networkId: network.id,
+    altNetworkId: null,
     holdId: `h${++s.seq}`,
     chargedFinal: 0,
     chargedEstimated: 0,
@@ -314,32 +316,27 @@ export const demoEsims = {
     read((): { daily: UsagePoint[]; byNetwork: UsageByNetwork[] } => {
       const c = authorize(["usage", "esims"]);
       const e = findEsim(c, id);
-      const today = dateInZone(new Date());
-      const late = c.s.lateDays[e.resellerId ?? "house"] ?? [];
       const days = new Map<string, { bytes: number; estimated: boolean }>();
       const nets = new Map<string, UsageByNetwork & { amountN: number }>();
-      // charged at the owner's prices (the house wallet pays supplier cost)
-      const buyer: Buyer = e.resellerId ? { kind: "reseller", resellerId: e.resellerId } : { kind: "house" };
-      for (const p of c.s.packages.filter((x) => x.esimId === e.id)) {
-        const u = c.s.usage[p.id];
-        if (!u) continue;
-        const n = NETWORK_BY_ID.get(p.networkId)!;
-        const price = buyerPricePerMb(c.s, buyer, n, p.planId) ?? 0;
-        u.mb.forEach((mb, i) => {
-          const day = addDays(u.start, i);
-          if (day < period.from || day > period.to) return;
-          const est = day >= addDays(today, -1) || late.includes(day);
+      // charged at the owner's prices (the house wallet pays Yesim cost), from the rated lines
+      forEachPackageDay(
+        c.s,
+        (_p, day, lines) => {
           const d = days.get(day) ?? { bytes: 0, estimated: false };
-          d.bytes += mb * BYTES.MB;
-          d.estimated ||= est;
+          for (const l of lines) {
+            const n = NETWORK_BY_ID.get(l.networkId)!;
+            d.bytes += l.mb * BYTES.MB;
+            d.estimated ||= l.estimated;
+            const row = nets.get(n.id) ?? { iso2: n.iso2, country: n.country, operator: n.operator, bytes: 0, amount: "0", amountN: 0, estimated: false };
+            row.bytes += l.mb * BYTES.MB;
+            row.amountN += l.amount;
+            row.estimated ||= l.estimated;
+            nets.set(n.id, row);
+          }
           days.set(day, d);
-          const row = nets.get(n.id) ?? { iso2: n.iso2, country: n.country, operator: n.operator, bytes: 0, amount: "0", amountN: 0, estimated: false };
-          row.bytes += mb * BYTES.MB;
-          row.amountN += mb * price;
-          row.estimated ||= est;
-          nets.set(n.id, row);
-        });
-      }
+        },
+        { packages: (p) => p.esimId === e.id, from: period.from, to: period.to },
+      );
       const daily: UsagePoint[] = [];
       for (let d = period.from; d <= period.to; d = addDays(d, 1)) daily.push({ date: d, bytes: days.get(d)?.bytes ?? 0, estimated: days.get(d)?.estimated ?? false });
       return { daily, byNetwork: [...nets.values()].map(({ amountN, ...r }) => ({ ...r, amount: money(amountN) })).sort((a, b) => b.bytes - a.bytes) };
@@ -556,6 +553,7 @@ export const demoEsims = {
         state: "pending_activation",
         adminBlocked: false,
         networkId: net.id,
+        altNetworkId: null,
         holdId: `h${++c.s.seq}`,
         chargedFinal: 0,
         chargedEstimated: 0,

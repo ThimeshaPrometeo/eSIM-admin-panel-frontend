@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Ban, CalendarPlus, Download, Eye, FileDown, Mail, MoreHorizontal, PauseCircle, PlayCircle, Plus, Power, Trash2, Unlock } from "lucide-react";
+import { ArrowLeft, Ban, Receipt, CalendarPlus, Download, Eye, FileDown, Mail, MoreHorizontal, PauseCircle, PlayCircle, Plus, Power, Trash2, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -27,6 +27,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { logDownload } from "@/lib/api/audit";
 import { errorMessage } from "@/lib/api/errors";
 import { esimsApi } from "@/lib/api/esims";
+import type { ChargeQuery } from "@/lib/api/finance";
+import { ChargeBreakdownSheet } from "@/components/platform/charge-breakdown";
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/exports";
 import { countryFlag } from "@/lib/platform/coverage";
 import { addDays, dateInZone, formatAxisDate, formatDate, formatDateTime, formatRelative } from "@/lib/platform/dates";
@@ -55,6 +57,7 @@ export function EsimDetailClient({ id }: { id: string }) {
   const [addData, setAddData] = useState<EsimPlan | null>(null);
   const [emailQr, setEmailQr] = useState(false);
   const [creds, setCreds] = useState<EsimCredentials | null>(null);
+  const [explain, setExplain] = useState<ChargeQuery | null>(null);
   const qrCanvas = useRef<HTMLDivElement>(null);
   const { run, pending } = useAction();
   const fit = useMediaQuery(FIT_QUERY);
@@ -261,12 +264,14 @@ export function EsimDetailClient({ id }: { id: string }) {
           onBlock={canPlans ? (p) => setConfirm({ kind: p.state === "blocked_by_admin" ? "unblock" : "block", plan: p }) : undefined}
           onDelete={rules.canDeletePlans(me) ? (p) => setConfirm({ kind: "delete", plan: p }) : undefined}
           onCancel={rules.canCancelWaitingPlan(me) ? (p) => setConfirm({ kind: "cancel", plan: p }) : undefined}
+          onExplain={(p) => setExplain({ packageId: p.id })}
           eol={eol}
         />
   );
   const usageSection = can("usage") ? <UsageSection id={e.id} iccid={e.iccid} /> : null;
   const dialogLayer = (
     <>
+      <ChargeBreakdownSheet query={explain} onOpenChange={(o) => !o && setExplain(null)} />
         <>
           <ExtendPlanDialog esimId={e.id} plan={extend} onOpenChange={(o) => !o && setExtend(null)} />
           <AddDataDialog esimId={e.id} plan={addData} onOpenChange={(o) => !o && setAddData(null)} />
@@ -412,6 +417,7 @@ function PlansSection({
   onBlock,
   onDelete,
   onCancel,
+  onExplain,
   eol,
 }: {
   plans: EsimPlan[];
@@ -420,6 +426,7 @@ function PlansSection({
   onBlock?: (p: EsimPlan) => void;
   onDelete?: (p: EsimPlan) => void;
   onCancel?: (p: EsimPlan) => void;
+  onExplain: (p: EsimPlan) => void;
   eol: boolean;
 }) {
   const columns: Column<EsimPlan>[] = [
@@ -462,7 +469,13 @@ function PlansSection({
       cell: (p) => (
         <span className="flex flex-col items-end gap-0.5">
           <span>{formatMoney(p.hold.amount)}</span>
-          <span className="text-small text-fg-3">{formatMoney(p.hold.used)} charged</span>
+          {toNumber(p.hold.used) > 0 ? (
+            <button onClick={() => onExplain(p)} className="text-small text-primary underline-offset-4 hover:underline">
+              {formatMoney(p.hold.used)} charged
+            </button>
+          ) : (
+            <span className="text-small text-fg-3">{formatMoney(p.hold.used)} charged</span>
+          )}
           {toNumber(p.charges.estimated) > 0 ? <EstimatedChip className="h-5 text-[11px]" /> : null}
         </span>
       ),
@@ -481,6 +494,7 @@ function PlansSection({
         if (!eol && running && onAddData) items.push({ label: "Add data", icon: Plus, onSelect: () => onAddData(p) });
         if (!eol && (running || p.state === "blocked_by_admin") && onBlock) items.push({ label: p.state === "blocked_by_admin" ? "Unblock plan" : "Block plan", icon: p.state === "blocked_by_admin" ? Unlock : Ban, onSelect: () => onBlock(p) });
         if (!eol && isLive(p.state) && onDelete) items.push({ label: "Delete plan", icon: Trash2, onSelect: () => onDelete(p), destructive: true });
+        if (toNumber(p.hold.used) > 0) items.unshift({ label: "How was this charged?", icon: Receipt, onSelect: () => onExplain(p) });
         if (!items.length) return null;
         return (
           <DropdownMenu>

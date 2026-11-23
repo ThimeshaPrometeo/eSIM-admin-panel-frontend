@@ -4,8 +4,7 @@ import { FitPage, FitScroll } from "@/components/platform/fit-page";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ArrowLeft, FileDown, MoreHorizontal, Pencil, Percent, Plus, Wallet } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowLeft, MoreHorizontal, Pencil, Percent, Plus, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -22,24 +21,26 @@ import { EmptyState, StatBlock } from "@/components/platform/primitives";
 import { EditResellerForm, MarkupForm, WalletCreditForm } from "@/components/platform/reseller-dialogs";
 import { StatusChip } from "@/components/platform/status-chip";
 import { HoldsTable, ledgerColumns } from "@/components/platform/wallet-tables";
-import { usePlatform } from "@/contexts/platform-context";
 import { useAction } from "@/hooks/use-action";
 import { usePermission } from "@/hooks/use-permission";
 import { useResource } from "@/hooks/use-resource";
-import { logDownload } from "@/lib/api/audit";
 import { catalogueApi } from "@/lib/api/catalogue";
 import { dashboardApi } from "@/lib/api/dashboard";
 import { errorMessage } from "@/lib/api/errors";
 import { esimsApi } from "@/lib/api/esims";
 import { peopleApi } from "@/lib/api/people";
 import { walletsApi } from "@/lib/api/wallets";
-import { exportPdf } from "@/lib/exports";
+import type { ChargeQuery } from "@/lib/api/finance";
+import { ChargeBreakdownSheet } from "@/components/platform/charge-breakdown";
 import { formatAxisDate, formatDate, formatDateTime, formatRelative } from "@/lib/platform/dates";
 import { formatMoney, toNumber } from "@/lib/platform/money";
 import { enabledCount, RESELLER_MATRIX } from "@/lib/platform/permission-matrix";
 import { periodFor } from "@/lib/platform/period";
 import { RESELLER_STATUS, USER_STATUS } from "@/lib/platform/status-labels";
-import type { Assistant, AuditEntry, Customer, Discount, DocumentRow, Reseller } from "@/lib/platform/types";
+import type { Assistant, AuditEntry, Customer, Discount, InvoiceSummary, MarkupChange, Reseller } from "@/lib/platform/types";
+import { InvoiceSheet } from "@/components/platform/invoice-view";
+import { financeApi } from "@/lib/api/finance";
+import { PricingSimulator } from "@/components/platform/pricing-simulator";
 import { toUnit } from "@/lib/platform/units";
 
 type Dialogs = "edit" | "markup" | "wallet" | "discount" | "status" | null;
@@ -159,6 +160,7 @@ export function ResellerDetailClient({ id }: { id: string }) {
             <TabsTrigger value="esims">eSIMs</TabsTrigger>
             <TabsTrigger value="customers">Customers</TabsTrigger>
             <TabsTrigger value="wallet">Wallet and ledger</TabsTrigger>
+            {rules.canSeeMarkup(me) ? <TabsTrigger value="pricing">Pricing</TabsTrigger> : null}
             <TabsTrigger value="discounts">Discounts</TabsTrigger>
             <TabsTrigger value="assistants">Assistants</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -169,6 +171,7 @@ export function ResellerDetailClient({ id }: { id: string }) {
         <TabsContent value="esims">{tab === "esims" ? <EsimsTab id={id} /> : null}</TabsContent>
         <TabsContent value="customers">{tab === "customers" ? <CustomersTab id={id} /> : null}</TabsContent>
         <TabsContent value="wallet">{tab === "wallet" && r ? <WalletTab reseller={r} /> : null}</TabsContent>
+        <TabsContent value="pricing">{tab === "pricing" && r ? <PricingTab reseller={r} /> : null}</TabsContent>
         <TabsContent value="discounts">{tab === "discounts" ? <DiscountsTab id={id} onAdd={rules.canEditDiscounts(me) ? () => setDialog("discount") : undefined} /> : null}</TabsContent>
         <TabsContent value="assistants">{tab === "assistants" ? <AssistantsTab id={id} /> : null}</TabsContent>
         <TabsContent value="documents">{tab === "documents" && r ? <DocumentsTab reseller={r} /> : null}</TabsContent>
@@ -260,6 +263,7 @@ function WalletTab({ reseller }: { reseller: Reseller }) {
   const walletId = reseller.wallet.walletId;
   const holds = useResource(() => walletsApi.listWalletHolds(walletId, "live"), [walletId]);
   const ledger = useResource(() => walletsApi.listTransactions({ walletId, pageSize: 100 }), [walletId]);
+  const [explain, setExplain] = useState<ChargeQuery | null>(null);
   return (
     <div className="flex flex-col gap-6">
       <section>
@@ -273,7 +277,30 @@ function WalletTab({ reseller }: { reseller: Reseller }) {
             <Link href={`/esim/wallets/${walletId}`}>Open the wallet</Link>
           </Button>
         </div>
-        <DataTable rows={ledger.data?.data} loading={ledger.loading} columns={ledgerColumns({ wallet: false })} rowKey={(l) => l.id} pageSize={10} caption="Ledger" empty={{ title: "No transactions", description: "Top-ups and usage charges appear here." }} />
+        <DataTable rows={ledger.data?.data} loading={ledger.loading} columns={ledgerColumns({ wallet: false, onExplain: (l) => setExplain({ walletId: l.walletId, date: l.reference.slice(3) }) })} rowKey={(l) => l.id} pageSize={10} caption="Ledger" empty={{ title: "No transactions", description: "Top-ups and usage charges appear here." }} />
+      </section>
+      <ChargeBreakdownSheet query={explain} onOpenChange={(o) => !o && setExplain(null)} />
+    </div>
+  );
+}
+
+/** How this reseller's prices are made: the simulator fixed to them, and their markup history. */
+function PricingTab({ reseller }: { reseller: Reseller }) {
+  const history = useResource(() => financeApi.listMarkupHistory(reseller.id), [reseller.id]);
+  const cols: Column<MarkupChange>[] = [
+    { id: "when", header: "Changed", cell: (m) => <span className="text-fg-2">{formatDate(m.changedAt)}</span>, sortValue: (m) => m.changedAt, hideable: false },
+    { id: "change", header: "Markup", cell: (m) => (m.previousPercent === null ? `${m.markupPercent}% (starting)` : <span className="font-medium">{m.previousPercent}% → {m.markupPercent}%</span>) },
+    { id: "from", header: "Applies from", cell: (m) => formatDate(m.effectiveFrom) },
+    { id: "who", header: "By", cell: (m) => m.changedBy },
+    { id: "reason", header: "Reason", cell: (m) => <span className="text-fg-2">{m.reason}</span>, className: "whitespace-normal min-w-48" },
+  ];
+  return (
+    <div className="flex flex-col gap-6">
+      <PricingSimulator resellerId={reseller.id} />
+      <section>
+        <h2 className="mb-1 text-section font-semibold">Markup history</h2>
+        <p className="mb-3 text-small text-fg-2">A change applies to usage rated from then on; charges already made keep the markup of their day.</p>
+        <DataTable rows={history.data} loading={history.loading} columns={cols} rowKey={(m) => m.id} defaultSort={{ id: "when", desc: true }} caption="Markup history" />
       </section>
     </div>
   );
@@ -318,60 +345,31 @@ function AssistantsTab({ id }: { id: string }) {
   return <DataTable rows={data} loading={loading} columns={columns} rowKey={(a) => a.id} caption="Assistants" empty={{ title: "No assistants", description: "The reseller adds assistants from their Team page." }} />;
 }
 
+/** The reseller's statements and receipts: the same documents, numbers and PDFs as the Invoices page. */
 function DocumentsTab({ reseller }: { reseller: Reseller }) {
-  const { me } = usePlatform();
-  const { data, loading } = useResource(() => peopleApi.listResellerDocuments(reseller.id), [reseller.id]);
-  const download = async (d: DocumentRow) => {
-    if (!me) return;
-    try {
-      await exportPdf({
-        fileName: `${d.number}.pdf`,
-        title: `${d.title} · ${d.number}`,
-        subtitle: `${reseller.companyName} · issued ${formatDate(d.issuedAt)} · demo document`,
-        columns: [
-          { header: "Document", value: (x: DocumentRow) => x.title },
-          { header: "Number", value: (x: DocumentRow) => x.number },
-          { header: "Issued", value: (x: DocumentRow) => formatDate(x.issuedAt) },
-          { header: "Amount (EUR)", value: (x: DocumentRow) => Number(x.amount).toFixed(2) },
-        ],
-        rows: [d],
-        watermark: { fullName: me.fullName, username: me.username },
-      });
-      await logDownload(d.kind, d.number);
-      toast.success("PDF downloaded");
-    } catch (e) {
-      toast.error(errorMessage(e));
-    }
-  };
-  const columns: Column<DocumentRow>[] = [
+  const { data, loading } = useResource(() => financeApi.listInvoices({ resellerId: reseller.id }), [reseller.id]);
+  const [open, setOpen] = useState<InvoiceSummary | null>(null);
+  const columns: Column<InvoiceSummary>[] = [
     { id: "number", header: "Number", cell: (d) => <span className="font-mono text-small">{d.number}</span>, sortValue: (d) => d.number, hideable: false },
     { id: "title", header: "Document", cell: (d) => d.title, sortValue: (d) => d.title },
     { id: "amount", header: "Amount", align: "right", cell: (d) => formatMoney(d.amount), sortValue: (d) => toNumber(d.amount) },
     { id: "issued", header: "Issued", cell: (d) => formatDate(d.issuedAt), sortValue: (d) => d.issuedAt },
-    {
-      id: "dl",
-      header: "",
-      align: "right",
-      hideable: false,
-      cell: (d) => (
-        <Button variant="ghost" size="sm" onClick={() => download(d)}>
-          <FileDown strokeWidth={1.5} />
-          PDF
-        </Button>
-      ),
-    },
   ];
   return (
-    <DataTable
-      rows={data}
-      loading={loading}
-      columns={columns}
-      rowKey={(d) => d.id}
-      defaultSort={{ id: "issued", desc: true }}
-      caption="Documents"
-      toolbar={<p className="text-small text-fg-3">Every PDF carries a “Downloaded by” watermark, and downloads are audit-logged.</p>}
-      empty={{ title: "No documents yet", description: "Statements are issued monthly; receipts when a top-up is approved." }}
-    />
+    <>
+      <DataTable
+        rows={data}
+        loading={loading}
+        columns={columns}
+        rowKey={(d) => d.id}
+        onRowClick={setOpen}
+        defaultSort={{ id: "issued", desc: true }}
+        caption="Documents"
+        toolbar={<p className="text-small text-fg-3">Open a document to see its lines; every PDF carries a “Downloaded by” watermark, and downloads are audit-logged.</p>}
+        empty={{ title: "No documents yet", description: "Statements are issued monthly; receipts when a top-up is approved." }}
+      />
+      <InvoiceSheet doc={open} onOpenChange={(o) => !o && setOpen(null)} />
+    </>
   );
 }
 

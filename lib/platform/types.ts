@@ -470,3 +470,172 @@ export type AuditEntry = { id: string; actor: string; action: string; summary: s
 export type DocumentRow = { id: string; number: string; kind: "statement" | "receipt" | "invoice"; title: string; amount: Money; issuedAt: string };
 
 export type PermissionContext = { envelope: Grants; resellerName: string | null };
+
+// ------------------------------------------------------------- finance (spec 8.32)
+
+/** One reseller's price on a network: the chain Yesim → markup → discount → price. */
+export type ResellerPriceCell = {
+  resellerId: string;
+  resellerName: string;
+  markupPercent: number;
+  discountPercent: number;
+  pricePerMb: number | null;
+  profitPerGb: number | null;
+  marginPercent: number | null;
+};
+
+export type PriceBreakdown = {
+  version: number;
+  syncedAt: string;
+  resellers: { id: string; name: string; markupPercent: number; discountPercent: number }[];
+  rows: (PricedNetwork & { costPerMb: number | null; cells: ResellerPriceCell[] })[];
+};
+
+export type SimulationLine = {
+  networkId: string;
+  operator: string;
+  iso2: string;
+  country: string;
+  mb: number;
+  costPerMb: number;
+  markupPercent: number;
+  discountPercent: number;
+  /** Yesim cost for the amount. */
+  cost: number;
+  /** After markup, before discount. */
+  beforeDiscount: number;
+  discountAmount: number;
+  /** What the reseller pays (or the retail price for direct sales). */
+  price: number;
+  profit: number;
+  marginPercent: number;
+};
+
+export type Simulation = { buyer: string; direct: boolean; bytes: number; lines: SimulationLine[] };
+
+/** A usage charge explained (spec 8.32). Cost, markup, discount and profit are null for resellers. */
+export type ChargeLine = {
+  date: string;
+  networkId: string;
+  operator: string;
+  iso2: string;
+  country: string;
+  planName: string;
+  iccid: string;
+  mb: number;
+  costPerMb: number | null;
+  cost: number | null;
+  markupPercent: number | null;
+  discountPercent: number | null;
+  pricePerMb: number;
+  charge: number;
+  /** Our revenue from the line (tenant only). */
+  revenue: number | null;
+  profit: number | null;
+  estimated: boolean;
+  version: number;
+};
+
+export type ChargeBreakdown = {
+  title: string;
+  subtitle: string;
+  lines: ChargeLine[];
+  /** The charge as booked (cents; package-day charges are rounded once). */
+  total: number;
+  totalCost: number | null;
+  /** Our revenue: the reseller charge, or the retail price for direct sales (tenant only). */
+  totalRevenue: number | null;
+  totalProfit: number | null;
+  estimated: boolean;
+  viewer: "tenant" | "reseller";
+  /** A direct sale: the house wallet pays Yesim cost; revenue is the retail price. */
+  direct: boolean;
+};
+
+export type ProfitRow = { key: string; label: string; mb: number; revenue: number; cost: number; profit: number; marginPercent: number };
+
+export type ProfitReport = {
+  totals: { revenue: number; cost: number; profit: number; marginPercent: number; mb: number; estimatedRevenue: number };
+  series: { bucket: string; revenue: number; cost: number; profit: number }[];
+  waterfall: { cost: number; markup: number; discount: number; revenue: number; profit: number };
+  byReseller: ProfitRow[];
+  byCountry: ProfitRow[];
+  byNetwork: ProfitRow[];
+  byPlan: ProfitRow[];
+  reconciliation: {
+    deposits: number;
+    costToDate: number;
+    implied: number;
+    reported: number;
+    difference: number;
+    tolerance: number;
+    reportedAt: string;
+    depositsList: { date: string; amount: number; reference: string }[];
+  };
+};
+
+export type PriceVersion = { version: number; effectiveFrom: string; syncedAt: string; changes: number; rises: number; falls: number; current: boolean };
+
+export type PriceChange = {
+  networkId: string;
+  operator: string;
+  iso2: string;
+  country: string;
+  oldCost: number;
+  newCost: number;
+  deltaPercent: number;
+  impact: { resellerId: string; resellerName: string; oldPerGb: number; newPerGb: number }[];
+};
+
+export type MarkupChange = {
+  id: string;
+  resellerId: string;
+  resellerName: string;
+  effectiveFrom: string;
+  markupPercent: number;
+  previousPercent: number | null;
+  changedAt: string;
+  changedBy: string;
+  reason: string;
+};
+
+export type InvoiceKind = "statement" | "receipt" | "invoice";
+
+export type InvoiceSummary = {
+  id: string;
+  number: string;
+  kind: InvoiceKind;
+  title: string;
+  resellerId: string | null;
+  resellerName: string | null;
+  period: string | null;
+  amount: Money;
+  issuedAt: string;
+};
+
+export type InvoiceDetail = InvoiceSummary & {
+  usage: { date: string; planName: string; mb: number; amount: number; estimated: boolean }[];
+  topups: { date: string; reference: string; amount: number }[];
+  releases: { date: string; planName: string; amount: number }[];
+  /** Statements: opening + top-ups − usage + other = closing (EUR). */
+  totals: { opening: number; usage: number; topups: number; other: number; closing: number; releases: number };
+  taxWording: string;
+  /** Watermark this document type's PDFs (Settings). */
+  watermark: boolean;
+  lines: { label: string; amount: number }[];
+};
+
+export type TenantSettings = {
+  timeZone: string;
+  currency: "EUR";
+  defaultMarkupPercent: number;
+  retailMarkupPercent: number;
+  spreadWarningRatio: number;
+  waitingPlanCancelDays: number;
+  houseWalletLowThreshold: number;
+  lowWalletThreshold: number;
+  lowStockThreshold: number;
+  watermark: Record<"statement" | "receipt" | "invoice" | "usage_report" | "price_list", boolean>;
+  taxWording: string;
+  mfaRequired: boolean;
+};

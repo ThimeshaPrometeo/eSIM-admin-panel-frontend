@@ -40,7 +40,10 @@ describe("demo seed", () => {
     expect(s.holds.filter((h) => h.walletId === "w-r1" && h.status === "waiting").length).toBe(2);
     expect(available(s, w("w-r3"))).toBeCloseTo(18, 0);
     expect(w("w-r4").balance).toBeCloseTo(0, 1);
-    expect(w("w-r5").outstanding).toBe(14.37);
+    // the overrun beyond the hold, computed from the rated charges
+    const r5 = s.packages.find((p) => s.holds.find((h) => h.id === p.holdId)?.status === "exhausted")!;
+    expect(w("w-r5").outstanding).toBeCloseTo(r5.chargedFinal + r5.chargedEstimated - 150, 2);
+    expect(w("w-r5").outstanding).toBeGreaterThan(10);
     expect(s.topups.some((t) => t.resellerId === "r4" && t.status === "pending")).toBe(true);
   });
 

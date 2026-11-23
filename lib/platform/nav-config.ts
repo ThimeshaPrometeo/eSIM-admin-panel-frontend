@@ -86,8 +86,8 @@ export const TENANT_NAV: NavSection[] = [
       tab("wallets", "Wallets", "/esim/wallets", ["wallets"], true),
       tab("transactions", "Transactions", "/esim/transactions", ["transactions"], true),
       tab("topup-requests", "Top-up requests", "/esim/topup-requests", ["topup_requests"], true),
-      tab("invoices", "Invoices", "/esim/invoices", ["invoices"], false),
-      tab("profit", "Profit and costs", "/esim/profit", ["profit_reports"], false),
+      tab("invoices", "Invoices", "/esim/invoices", ["invoices"], true),
+      tab("profit", "Profit and costs", "/esim/profit", ["profit_reports"], true),
     ],
   },
   {
@@ -106,7 +106,7 @@ export const TENANT_NAV: NavSection[] = [
     short: "System",
     icon: Server,
     tabs: [
-      tab("settings", "Settings", "/esim/settings", ["settings"], false),
+      tab("settings", "Settings", "/esim/settings", ["settings"], true),
       tab("yesim", "Yesim connection", "/esim/yesim", ["yesim_connection"], false),
       tab("audit-log", "Audit log", "/esim/audit-log", ["audit_log"], false),
     ],
@@ -147,7 +147,7 @@ export const RESELLER_NAV: NavSection[] = [
     tabs: [
       tab("wallet", "Wallet", "/esim/wallet", ["wallets"], true),
       tab("transactions", "Transactions", "/esim/transactions", ["transactions"], true),
-      tab("invoices", "Invoices", "/esim/invoices", ["invoices"], false),
+      tab("invoices", "Invoices", "/esim/invoices", ["invoices"], true),
     ],
   },
   { id: "team", label: "Team management", short: "Team", icon: UsersRound, tabs: [tab("assistants", "Assistants", "/esim/assistants", ["team"], true)] },

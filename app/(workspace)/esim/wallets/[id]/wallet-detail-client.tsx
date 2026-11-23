@@ -18,6 +18,8 @@ import { usePermission } from "@/hooks/use-permission";
 import { useResource } from "@/hooks/use-resource";
 import { errorMessage } from "@/lib/api/errors";
 import { walletsApi } from "@/lib/api/wallets";
+import type { ChargeQuery } from "@/lib/api/finance";
+import { ChargeBreakdownSheet } from "@/components/platform/charge-breakdown";
 import { formatMoney } from "@/lib/platform/money";
 import type { Wallet } from "@/lib/platform/types";
 
@@ -28,6 +30,7 @@ export function WalletDetailClient({ id }: { id: string }) {
   const holds = useResource(() => walletsApi.listWalletHolds(id), [id]);
   const ledger = useResource(() => walletsApi.listTransactions({ walletId: id, pageSize: 100 }), [id]);
   const [adjusting, setAdjusting] = useState(false);
+  const [explain, setExplain] = useState<ChargeQuery | null>(null);
   if (wallet.error) return <EmptyState illustration="signal" title="Wallet not found" description={errorMessage(wallet.error)} />;
   const w = wallet.data;
   return (
@@ -65,8 +68,9 @@ export function WalletDetailClient({ id }: { id: string }) {
       </section>
       <section>
         <h2 className="mb-3 text-section font-semibold">Ledger</h2>
-        <DataTable rows={ledger.data?.data} loading={ledger.loading} columns={ledgerColumns({ wallet: false })} rowKey={(l) => l.id} pageSize={15} caption="Ledger" empty={{ title: "No transactions", description: "Top-ups and usage charges appear here." }} />
+        <DataTable rows={ledger.data?.data} loading={ledger.loading} columns={ledgerColumns({ wallet: false, onExplain: (l) => setExplain({ walletId: l.walletId, date: l.reference.slice(3) }) })} rowKey={(l) => l.id} pageSize={15} caption="Ledger" empty={{ title: "No transactions", description: "Top-ups and usage charges appear here." }} />
       </section>
+      <ChargeBreakdownSheet query={explain} onOpenChange={(o) => !o && setExplain(null)} />
       {w ? (
         <Dialog open={adjusting} onOpenChange={setAdjusting}>
           <DialogContent>{adjusting ? <AdjustForm wallet={w} onDone={() => setAdjusting(false)} /> : null}</DialogContent>

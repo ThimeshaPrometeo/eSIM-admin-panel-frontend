@@ -5,6 +5,7 @@
  */
 import { ApiError } from "./errors";
 import { creditWallet, debitWallet } from "@/lib/demo/billing";
+import { nextRatingDay } from "./catalogue.demo";
 import { meFor, resellerView } from "@/lib/demo/derive";
 import type { DReseller, DUser } from "@/lib/demo/model";
 import { read, write } from "@/lib/demo/run";
@@ -79,6 +80,7 @@ export const demoPeople = {
         createdAt: nowIso(),
       };
       c.s.resellers.push(r);
+      c.s.markupHistory.push({ id: `mh${++c.s.seq}`, resellerId: id, effectiveFrom: c.s.seededOn, markupPercent: r.markupPercent, previousPercent: null, changedAt: nowIso(), changedBy: c.u.id, reason: "Starting markup" });
       c.s.wallets.push({ id: `w-${id}`, kind: "reseller", resellerId: id, balance: 0, outstanding: 0, lowThreshold: c.s.settings.lowWalletThreshold });
       c.s.users.push({
         id: `u-${id}`,
@@ -124,6 +126,16 @@ export const demoPeople = {
       if (!r) throw new ApiError(404, "NOT_FOUND");
       if (input.markupPercent < 0 || input.markupPercent > 500) throw new ApiError(400, "INVALID_MARKUP", "Use a markup between 0% and 500%.");
       audit(c, "reseller.markup_changed", "reseller", id, `Markup changed from ${r.markupPercent}% to ${input.markupPercent}%${input.reason ? `: ${input.reason}` : ""}`, id);
+      c.s.markupHistory.push({
+        id: `mh${++c.s.seq}`,
+        resellerId: id,
+        effectiveFrom: nextRatingDay(c),
+        markupPercent: input.markupPercent,
+        previousPercent: r.markupPercent,
+        changedAt: nowIso(),
+        changedBy: c.u.id,
+        reason: input.reason,
+      });
       r.markupPercent = input.markupPercent;
     }),
   /** Admin credit (or debit) to a reseller wallet from the reseller page. A credit runs the funding queue. */

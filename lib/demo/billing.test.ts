@@ -113,12 +113,13 @@ describe("top-up approval and the funding queue", () => {
 
   it("pays the outstanding amount first", async () => {
     as("u-r5");
+    const owed = wallet("w-r5").outstanding;
     const req = await demoWallets.createTopupRequest({ amount: 100, paymentReference: "BT3", note: "" });
     as("u-admin");
     const done = await demoWallets.approveTopupRequest(req.id);
-    expect(done.effect?.outstandingPaid).toBe("14.37");
+    expect(Number(done.effect?.outstandingPaid)).toBeCloseTo(owed, 2);
     expect(wallet("w-r5").outstanding).toBe(0);
-    expect(wallet("w-r5").balance).toBeCloseTo(100 - 14.37, 2);
+    expect(wallet("w-r5").balance).toBeCloseTo(100 - owed, 2);
   });
 
   it("a wallet never goes below its reserved amount", async () => {

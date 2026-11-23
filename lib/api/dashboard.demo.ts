@@ -4,7 +4,7 @@
  */
 import { NETWORK_BY_ID } from "@/lib/demo/catalogue";
 import { esimView, isLivePlan, walletOfReseller, walletSummary } from "@/lib/demo/derive";
-import { buyerPricePerMb, retailPricePerMb } from "@/lib/demo/pricing";
+import { forEachPackageDay } from "@/lib/demo/rating";
 import { read } from "@/lib/demo/run";
 import { authorize } from "@/lib/demo/session";
 import { addDays, dateInZone } from "@/lib/platform/dates";
@@ -20,7 +20,7 @@ export const demoDashboard = {
     read((): DashboardData => {
       const c = authorize("dashboard");
       const s = c.s;
-      const today = dateInZone(new Date());
+      const today = s.seededOn;
       const scopeReseller = c.tenant ? (opts.resellerId ?? undefined) : c.resellerId;
       const inScope = (resellerId: string | null) => (scopeReseller === undefined ? true : resellerId === scopeReseller);
       const esims = s.esims.filter((e) => inScope(e.resellerId));
@@ -41,36 +41,35 @@ export const demoDashboard = {
       let revenueTotal = 0;
       let revenuePrev = 0;
 
-      for (const p of pkgs) {
-        const u = s.usage[p.id];
-        if (!u) continue;
-        const e = esimOf.get(p.esimId)!;
-        const net = NETWORK_BY_ID.get(p.networkId)!;
-        const late = s.lateDays[e.resellerId ?? "house"] ?? [];
-        const price = e.resellerId ? (buyerPricePerMb(s, { kind: "reseller", resellerId: e.resellerId }, net, p.planId) ?? 0) : (retailPricePerMb(s, net) ?? 0);
-        u.mb.forEach((mb, i) => {
-          if (!mb) return;
-          const day = addDays(u.start, i);
-          const bytes = mb * MB;
-          if (day >= addDays(today, -6)) recent.set(net.iso2, (recent.get(net.iso2) ?? 0) + bytes);
+      // every figure from the rated usage lines (lib/demo/rating): revenue = reseller charges, or retail for direct sales
+      const pkgIds = new Set(pkgs.map((p) => p.id));
+      forEachPackageDay(
+        s,
+        (p, day, lines, charge, owner) => {
+          const bytes = lines.reduce((a, l) => a + l.mb, 0) * MB;
+          const revenueDay = owner === null ? lines.reduce((a, l) => a + l.revenue, 0) : charge;
+          const costDay = lines.reduce((a, l) => a + l.cost, 0);
+          const iso = lines[0]!.iso2;
+          if (day >= addDays(today, -6)) recent.set(iso, (recent.get(iso) ?? 0) + bytes);
           if (day >= prev.from && day <= prev.to) {
             usedPrev += bytes;
-            revenuePrev += mb * price;
+            revenuePrev += revenueDay;
           }
           if (day < period.from || day > period.to) return;
           const b = bucketOf(day, period.granularity);
           const slot = usage.get(b)!;
-          if (day >= addDays(today, -1) || late.includes(day)) slot.estimatedBytes += bytes;
+          if (lines[0]!.estimated) slot.estimatedBytes += bytes;
           else slot.finalBytes += bytes;
           used += bytes;
-          byEsim.set(e.id, (byEsim.get(e.id) ?? 0) + bytes);
-          byCountry.set(net.iso2, (byCountry.get(net.iso2) ?? 0) + bytes);
+          byEsim.set(p.esimId, (byEsim.get(p.esimId) ?? 0) + bytes);
+          for (const l of lines) byCountry.set(l.iso2, (byCountry.get(l.iso2) ?? 0) + l.mb * MB);
           const r = revenue.get(b)!;
-          r.revenue += mb * price;
-          r.cost += mb * (net.costPerMb ?? 0);
-          revenueTotal += mb * price;
-        });
-      }
+          r.revenue += revenueDay;
+          r.cost += costDay;
+          revenueTotal += revenueDay;
+        },
+        { packages: (p) => pkgIds.has(p.id) },
+      );
 
       // monthly usage: the months touched by the last 90 days
       const monthly = new Map<string, number>();

@@ -1,6 +1,9 @@
 "use client";
 
-import { FitPage } from "@/components/platform/fit-page";
+import { FitPage, FitScroll } from "@/components/platform/fit-page";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PricingSimulator } from "@/components/platform/pricing-simulator";
+import { BreakdownTab, HistoryTab } from "./price-tabs";
 import { useMemo, useState } from "react";
 import { FileDown, RefreshCw, Sheet } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +39,7 @@ export function PriceListClient() {
   const { data, loading, error } = useResource(() => catalogueApi.getCurrentPriceList({ resellerId }), [resellerId]);
   const { run, pending } = useAction();
   const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
+  const [tab, setTab] = useState("prices");
 
   const zones = useMemo(() => [...new Set((data?.rows ?? []).flatMap((r) => r.zones))].sort(), [data]);
   const rows = useMemo(() => {
@@ -136,31 +140,7 @@ export function PriceListClient() {
     }
   };
 
-  return (
-    <FitPage>
-      <PageHeader
-        title="Price list"
-        description={
-          isTenant
-            ? "Supplier cost per network, the retail price for direct sales, and what any reseller pays."
-            : "Your price per network. You pay per MB used, at the price of the network the phone is on."
-        }
-        actions={
-          <>
-            {data ? (
-              <span className="text-small text-fg-3" title={formatDateTime(data.syncedAt)}>
-                Synced {formatRelative(data.syncedAt)} · version {data.version}
-              </span>
-            ) : null}
-            {rules.canSyncPriceList(me) ? (
-              <Button variant="secondary" disabled={pending} onClick={() => run(() => catalogueApi.syncPriceList(), { success: "Price list synced", description: "No prices changed." })}>
-                <RefreshCw strokeWidth={1.5} />
-                Sync now
-              </Button>
-            ) : null}
-          </>
-        }
-      />
+  const pricesTable = (
       <DataTable
         rows={data ? rows : undefined}
         loading={loading}
@@ -192,6 +172,48 @@ export function PriceListClient() {
         }
         empty={{ title: "No networks match", description: "Try another search or filter.", illustration: "globe" }}
       />
+  );
+
+  return (
+    <FitPage>
+      <PageHeader
+        title="Price list"
+        description={
+          isTenant
+            ? "Supplier cost per network, the retail price for direct sales, and what any reseller pays."
+            : "Your price per network. You pay per MB used, at the price of the network the phone is on."
+        }
+        actions={
+          <>
+            {data ? (
+              <span className="text-small text-fg-3" title={formatDateTime(data.syncedAt)}>
+                Synced {formatRelative(data.syncedAt)} · version {data.version}
+              </span>
+            ) : null}
+            {rules.canSyncPriceList(me) ? (
+              <Button variant="secondary" disabled={pending} onClick={() => run(() => catalogueApi.syncPriceList(), { success: "Price list synced", description: "No prices changed." })}>
+                <RefreshCw strokeWidth={1.5} />
+                Sync now
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+      {isTenant ? (
+        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="self-start">
+            <TabsTrigger value="prices">Prices</TabsTrigger>
+            <TabsTrigger value="breakdown">Price breakdown</TabsTrigger>
+            <TabsTrigger value="simulator">Simulator</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+          <div className="mt-4 flex min-h-0 flex-1 flex-col">
+            {tab === "prices" ? pricesTable : tab === "breakdown" ? <BreakdownTab /> : tab === "simulator" ? <FitScroll><PricingSimulator /></FitScroll> : <HistoryTab />}
+          </div>
+        </Tabs>
+      ) : (
+        pricesTable
+      )}
     </FitPage>
   );
 }

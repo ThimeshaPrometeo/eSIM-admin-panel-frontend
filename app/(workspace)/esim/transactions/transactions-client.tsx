@@ -13,6 +13,8 @@ import { usePermission } from "@/hooks/use-permission";
 import { useResource } from "@/hooks/use-resource";
 import { logDownload } from "@/lib/api/audit";
 import { walletsApi } from "@/lib/api/wallets";
+import type { ChargeQuery } from "@/lib/api/finance";
+import { ChargeBreakdownSheet } from "@/components/platform/charge-breakdown";
 import { exportCsv } from "@/lib/exports";
 import { periodFor, type Period } from "@/lib/platform/period";
 import type { LedgerEntry, LedgerType } from "@/lib/platform/types";
@@ -25,7 +27,9 @@ export function TransactionsClient() {
   const [resellerId, setResellerId] = useState<string | null>(null);
   const { data, loading, error } = useResource(() => walletsApi.listTransactions({ from: period.from, to: period.to, type, resellerId, pageSize: 100000 }), [period.from, period.to, type, resellerId]);
   const rows = data?.data;
-  const columns = useMemo(() => ledgerColumns({ wallet: isTenant }), [isTenant]);
+  const [explain, setExplain] = useState<ChargeQuery | null>(null);
+  // a usage charge row is one wallet's charges for one day (reference UC-YYYY-MM-DD)
+  const columns = useMemo(() => ledgerColumns({ wallet: isTenant, onExplain: (l) => setExplain({ walletId: l.walletId, date: l.reference.slice(3) }) }), [isTenant]);
   return (
     <FitPage>
       <PageHeader title="Transactions" description="Every movement of money: top-ups, usage charges, holds and their release, adjustments. Usage stays Estimated until the nightly report." />
@@ -74,6 +78,7 @@ export function TransactionsClient() {
         }
         empty={{ title: "No transactions in this period", description: "Try a longer period or another type.", illustration: "signal" }}
       />
+      <ChargeBreakdownSheet query={explain} onOpenChange={(o) => !o && setExplain(null)} />
     </FitPage>
   );
 }

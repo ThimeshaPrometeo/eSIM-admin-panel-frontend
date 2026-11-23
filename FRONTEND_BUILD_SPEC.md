@@ -711,6 +711,42 @@ Generate an idempotency key per attempt and reuse it on retry; the confirm butto
 - Lockout message after 10 failed attempts (15 minutes).
 - The 3D globe hero with the fluid shader background (section 7.5).
 
+### 8.32 Financial transparency
+
+The client must see how Yesim's price list becomes reseller prices, charges and profit. Every figure on
+every page comes from one formula, applied per network with the rates in force at the time:
+
+**reseller price per MB = Yesim €/MB × (1 + markup) × (1 − discount)**
+
+Profit per MB = reseller price − Yesim €/MB. Margin % = profit ÷ reseller price. Direct sales use the retail
+markup and no discount. Resellers never see Yesim cost, markup or anyone else's price; they see their own
+price and their own charges.
+
+- **Price list, admin price breakdown:** for every network the chain Yesim €/MB → markup → discount →
+  reseller price, per MB and per GB, plus profit per GB and margin %. A reseller selector recalculates all
+  rows; a compare mode shows two or three resellers side by side.
+- **Pricing simulator** (admin; on the price list page and the reseller page): reseller, country or
+  network, data amount (MB/GB). Shows Yesim cost, reseller price, the discount's effect, profit and margin,
+  with the formula written out in plain numbers.
+- **Charge breakdown:** every usage charge (eSIM detail, transactions, statements) opens "How was this
+  charged?": bytes per network, Yesim rate, our cost, markup, discount, reseller charge, profit (admin
+  only), estimated or final, and the price list version used. Resellers see their own charge per network
+  without Yesim cost or markup.
+- **Profit and costs** (8.23): revenue, Yesim cost and profit over time; a waterfall (Yesim cost, + markup,
+  − discounts, = revenue, profit); breakdowns by reseller, country, network and plan with margin %; top and
+  lowest-margin resellers; reconciliation of the Yesim balance with our records; CSV and PDF (watermarked).
+- **Price and markup history:** Yesim price list versions with effective dates and a "what changed" view
+  (networks whose price rose or fell, by how much, and the impact on each reseller's price); per-reseller
+  markup history (old, new, who, when, reason).
+- **Invoices and statements** (8.22): monthly statements per reseller built from per-MB usage charges per
+  plan per day, top-up receipts, direct-sale invoices; sequential numbers; PDF with the watermark.
+- **Settings** (8.26), pricing and billing: default reseller markup, retail markup, price-spread threshold,
+  unfunded-plan days, wallet thresholds, watermark per document type, tax wording.
+- **Demo data:** at least one Yesim price change in the last 90 days (some networks up, some down), markup
+  changes on two resellers, usage lines per network carrying Yesim cost, markup and discount, and a Yesim
+  balance for reconciliation. Price list, simulator, charges, statements, wallets and profit must agree to
+  the cent.
+
 ---
 
 ## 9. Formatting rules

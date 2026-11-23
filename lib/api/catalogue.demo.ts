@@ -11,6 +11,7 @@ import { read, write } from "@/lib/demo/run";
 import { audit, authorize, requireRole, type Caller } from "@/lib/demo/session";
 import { isCountry, isPriced, type Network } from "@/lib/platform/coverage";
 import { money } from "@/lib/platform/money";
+import { addDays } from "@/lib/platform/dates";
 import { BYTES } from "@/lib/platform/units";
 import type {
   CatalogueItem,
@@ -148,6 +149,15 @@ export type ResellerPlanInput = { planId: string; name: string; description: str
 export type DiscountInput = { resellerId: string; planId: string | null; percent: number };
 
 const LAST_SYNC_MIN = 127;
+
+/** Changes apply to usage rated from now on: the first day after the demo's last rated day. */
+export function nextRatingDay(c: Caller) {
+  return addDays(c.s.seededOn, 1);
+}
+
+function newDiscount(c: Caller, resellerId: string, planId: string | null, percent: number): DState["discounts"][number] {
+  return { id: `d${++c.s.seq}`, resellerId, planId, percent, status: "active", createdAt: new Date().toISOString(), effectiveFrom: nextRatingDay(c), endedOn: null, createdBy: c.u.id };
+}
 
 export const demoCatalogue = {
   // -------------------------------------------------------------- coverage
@@ -388,12 +398,13 @@ export const demoCatalogue = {
         }))
         .sort((a, b) => a.resellerName.localeCompare(b.resellerName) || (a.planName ?? "").localeCompare(b.planName ?? ""));
     }),
+  // Discount changes apply to usage rated from now on (the next rating day); history is kept.
   createDiscount: (input: DiscountInput) =>
     write(() => {
       const c = authorize("discounts", "manage");
       requireRole(c, "admin");
       if (c.s.discounts.some((d) => d.status === "active" && d.resellerId === input.resellerId && d.planId === input.planId)) throw new ApiError(409, "DUPLICATE_DISCOUNT");
-      const d = { id: `d${++c.s.seq}`, resellerId: input.resellerId, planId: input.planId, percent: input.percent, status: "active" as const, createdAt: new Date().toISOString() };
+      const d = newDiscount(c, input.resellerId, input.planId, input.percent);
       c.s.discounts.push(d);
       audit(c, "discount.created", "discount", d.id, `Discount ${input.percent}%${input.planId ? ` on ${c.s.plans.find((p) => p.id === input.planId)?.name}` : ""}`, input.resellerId);
     }),
@@ -401,18 +412,21 @@ export const demoCatalogue = {
     write(() => {
       const c = authorize("discounts", "manage");
       requireRole(c, "admin");
-      const d = c.s.discounts.find((x) => x.id === id);
+      const d = c.s.discounts.find((x) => x.id === id && x.status === "active");
       if (!d) throw new ApiError(404, "NOT_FOUND");
       audit(c, "discount.updated", "discount", d.id, `Discount changed from ${d.percent}% to ${input.percent}%`, d.resellerId);
-      d.percent = input.percent;
+      d.status = "inactive";
+      d.endedOn = nextRatingDay(c);
+      c.s.discounts.push(newDiscount(c, d.resellerId, d.planId, input.percent));
     }),
   deleteDiscount: (id: string) =>
     write(() => {
       const c = authorize("discounts", "manage");
       requireRole(c, "admin");
-      const d = c.s.discounts.find((x) => x.id === id);
+      const d = c.s.discounts.find((x) => x.id === id && x.status === "active");
       if (!d) throw new ApiError(404, "NOT_FOUND");
       d.status = "inactive";
+      d.endedOn = nextRatingDay(c);
       audit(c, "discount.removed", "discount", d.id, `Discount ${d.percent}% removed`, d.resellerId);
     }),
   /**

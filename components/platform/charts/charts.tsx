@@ -360,3 +360,62 @@ export function RevenueProfitChart({ data }: { data: { label: string; revenue: n
     </ChartFrame>
   );
 }
+
+/**
+ * Waterfall (spec 8.32): Yesim cost, + markup, − discounts, = revenue, and
+ * profit. Floating bars: each step starts where the previous one ended.
+ */
+export function WaterfallChart({ data, title = "From Yesim cost to profit", description }: { data: { cost: number; markup: number; discount: number; revenue: number; profit: number }; title?: string; description?: string }) {
+  const id = cssId(useId());
+  // each bar is a range [from, to]: steps float where the previous one ended
+  const top = data.cost + data.markup;
+  const steps = [
+    { label: "Yesim cost", range: [0, data.cost], value: data.cost, fill: SERIES.neutral },
+    { label: "+ Markup", range: [data.cost, top], value: data.markup, fill: SERIES.primary },
+    { label: "− Discounts", range: [top - data.discount, top], value: -data.discount, fill: SERIES.warning },
+    { label: "= Revenue", range: [0, data.revenue], value: data.revenue, fill: SERIES.primary },
+    { label: "Profit", range: [0, data.profit], value: data.profit, fill: SERIES.accent },
+  ];
+  return (
+    <ChartFrame title={title} description={description ?? "EUR in the period; revenue = Yesim cost + markup − discounts"}>
+      {({ animate, duration }) => (
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={steps} margin={{ top: 22, right: 4, left: -4, bottom: 0 }}>
+            <ChartDefs id={id} />
+            <CartesianGrid {...GRID} />
+            <XAxis dataKey="label" {...AXIS} interval={0} />
+            <YAxis {...AXIS} width={56} tickFormatter={axisEur} domain={[0, "auto"]} />
+            <Tooltip
+              cursor={{ fill: "var(--surface-3)", opacity: 0.4 }}
+              content={({ active, payload }) =>
+                active && payload?.length ? (
+                  <div className="glass-pop rounded-[10px] px-3 py-2 text-small">
+                    <p className="text-fg-2">{(payload[0]!.payload as { label: string }).label}</p>
+                    <p className="font-semibold tabular">{eur((payload[0]!.payload as { value: number }).value)}</p>
+                  </div>
+                ) : null
+              }
+            />
+            <Bar
+              dataKey="range"
+              name="Amount"
+              radius={[6, 6, 2, 2]}
+              maxBarSize={56}
+              isAnimationActive={animate}
+              animationDuration={duration}
+              label={({ x, y, width, index }: { x?: number | string; y?: number | string; width?: number | string; index?: number }) => (
+                <text x={Number(x ?? 0) + Number(width ?? 0) / 2} y={Number(y ?? 0) - 6} textAnchor="middle" fill="var(--text-2)" fontSize={11}>
+                  {eur(Math.abs(steps[index ?? 0]!.value))}
+                </text>
+              )}
+            >
+              {steps.map((s) => (
+                <Cell key={s.label} fill={s.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartFrame>
+  );
+}

@@ -75,7 +75,7 @@ export function HoldsTable({ rows, loading, toolbar, empty }: { rows: WalletHold
 }
 
 /** Ledger rows (spec 8.18, 8.20): type, amount, balance after, reference, estimated/final for usage. */
-export function ledgerColumns({ wallet }: { wallet: boolean }): Column<LedgerEntry>[] {
+export function ledgerColumns({ wallet, onExplain }: { wallet: boolean; onExplain?: (l: LedgerEntry) => void }): Column<LedgerEntry>[] {
   return [
     { id: "date", header: "Date", cell: (l) => <span className="text-fg-2">{formatDateTime(l.createdAt)}</span>, sortValue: (l) => l.createdAt, hideable: false },
     ...(wallet ? [{ id: "wallet", header: "Wallet", cell: (l: LedgerEntry) => l.walletName, sortValue: (l: LedgerEntry) => l.walletName }] : []),
@@ -83,9 +83,20 @@ export function ledgerColumns({ wallet }: { wallet: boolean }): Column<LedgerEnt
       id: "type",
       header: "Type",
       cell: (l) => (
-        <span className="flex items-center gap-2">
+        <span className="flex flex-wrap items-center gap-2">
           {LEDGER_TYPE[l.type]}
           {l.estimated ? <EstimatedChip className="h-5 text-[11px]" /> : null}
+          {onExplain && l.type === "usage_charge" ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onExplain(l);
+              }}
+              className="text-small font-medium text-primary underline-offset-4 hover:underline"
+            >
+              How was this charged?
+            </button>
+          ) : null}
         </span>
       ),
       sortValue: (l) => l.type,

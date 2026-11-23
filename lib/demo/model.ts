@@ -7,7 +7,7 @@ import type { Grants } from "@/lib/platform/permission-matrix";
 import type { EsimStatus, HoldStatus, InstallStatus, OrderStatus, SuspendedBy, TopupStatus } from "@/lib/platform/status";
 import type { LedgerType, Role } from "@/lib/platform/types";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 8;
 
 export type DUser = {
   id: string;
@@ -64,7 +64,48 @@ export type DResellerPlan = {
   createdAt: string;
 };
 
-export type DDiscount = { id: string; resellerId: string; planId: string | null; percent: number; status: "active" | "inactive"; createdAt: string };
+export type DDiscount = {
+  id: string;
+  resellerId: string;
+  planId: string | null;
+  percent: number;
+  status: "active" | "inactive";
+  createdAt: string;
+  /** First day (YYYY-MM-DD) usage is rated with it; changes made in the demo apply from the next rating day. */
+  effectiveFrom: string;
+  /** First day it no longer applies (removed or replaced), or null. */
+  endedOn: string | null;
+  createdBy: string | null;
+};
+
+/** One supplier price list version; `changes` are the networks whose €/MB changed in it. */
+export type DPriceVersion = {
+  version: number;
+  effectiveFrom: string;
+  syncedAt: string;
+  changes: { networkId: string; oldCost: number; newCost: number }[];
+};
+
+/** A reseller's markup from a day on (first entry = the markup they started with). */
+export type DMarkupChange = {
+  id: string;
+  resellerId: string;
+  effectiveFrom: string;
+  markupPercent: number;
+  previousPercent: number | null;
+  changedAt: string;
+  changedBy: string | null;
+  reason: string;
+};
+
+/** Our prepaid account at the supplier: deposits we sent, and the balance the supplier reports. */
+export type DSupplierAccount = {
+  deposits: { id: string; date: string; amount: number; reference: string }[];
+  /** Balance reported by the supplier at `reportedAt`. */
+  reportedBalance: number;
+  reportedAt: string;
+  tolerance: number;
+};
 
 export type DEsim = {
   id: string;
@@ -99,6 +140,8 @@ export type DPackage = {
   adminBlocked: boolean;
   /** Network the phone mostly used (drives country and price). */
   networkId: string;
+  /** A second network in the same country used on some days (roaming between operators), or null. */
+  altNetworkId: string | null;
   holdId: string;
   /** Charged so far, split by status (EUR, in the buyer's prices). */
   chargedFinal: number;
@@ -190,6 +233,8 @@ export type DSettings = {
   spreadWarningRatio: number;
   waitingPlanCancelDays: number;
   houseWalletLowThreshold: number;
+  watermark: Record<"statement" | "receipt" | "invoice" | "usage_report" | "price_list", boolean>;
+  taxWording: string;
   lowWalletThreshold: number;
   lowStockThreshold: number;
   dailySaleLimit: number;
@@ -224,4 +269,7 @@ export type DState = {
   usage: Record<string, DUsage>;
   /** Days whose usage report is late (still estimated), per reseller id ("house" for direct). */
   lateDays: Record<string, string[]>;
+  priceVersions: DPriceVersion[];
+  markupHistory: DMarkupChange[];
+  supplier: DSupplierAccount;
 };

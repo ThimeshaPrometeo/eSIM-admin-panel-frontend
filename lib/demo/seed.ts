@@ -5,11 +5,12 @@
  * charges follow the pricing rules in ./pricing.
  */
 import { isPriced, type Network } from "@/lib/platform/coverage";
-import { addDays, dateInZone, DEFAULT_TIME_ZONE } from "@/lib/platform/dates";
+import { addDays, dateInZone, daysBetween, DEFAULT_TIME_ZONE } from "@/lib/platform/dates";
 import type { Grants } from "@/lib/platform/permission-matrix";
 import type { InstallStatus } from "@/lib/platform/status";
 import { BYTES } from "@/lib/platform/units";
-import { NETWORK_BY_ID, zoneNetworks } from "./catalogue";
+import { CATALOGUE, zoneNetworks } from "./catalogue";
+import { forEachPackageDay, packageCharges } from "./rating";
 import type { DAudit, DEsim, DHold, DLedger, DNotification, DOrder, DPackage, DPlan, DState, DTopup, DUsage, DUser } from "./model";
 import { SCHEMA_VERSION } from "./model";
 import { buyerPricePerMb, holdFor, round2, type Buyer } from "./pricing";
@@ -160,12 +161,56 @@ export function createSeed(now: Date = new Date()): DState {
   ];
   const planById = new Map(plans.map((p) => [p.id, p]));
 
-  const discounts = [
-    { id: "d1", resellerId: "r1", planId: null, percent: 5, status: "active" as const, createdAt: at(-90) },
-    { id: "d2", resellerId: "r1", planId: "p-it3", percent: 10, status: "active" as const, createdAt: at(-60) },
-    { id: "d3", resellerId: "r3", planId: null, percent: 8, status: "active" as const, createdAt: at(-75) },
-    { id: "d4", resellerId: "r5", planId: "p-eu10", percent: 3, status: "active" as const, createdAt: at(-40) },
+  const discount = (id: string, resellerId: string, planId: string | null, percent: number, offset: number) => ({
+    id,
+    resellerId,
+    planId,
+    percent,
+    status: "active" as const,
+    createdAt: at(offset),
+    effectiveFrom: addDays(today, offset),
+    endedOn: null,
+    createdBy: "u-admin",
+  });
+  const discounts = [discount("d1", "r1", null, 5, -90), discount("d2", "r1", "p-it3", 10, -60), discount("d3", "r3", null, 8, -75), discount("d4", "r5", "p-eu10", 3, -40)];
+
+  // ---- Yesim price list history: two versions inside the last 90 days (some networks up, some down)
+  const net = (iso2: string, operator: RegExp) => CATALOGUE.networks.find((n) => n.iso2 === iso2 && operator.test(n.operator) && isPriced(n));
+  const change = (n: Network | undefined, pct: number) => (n ? [{ networkId: n.id, oldCost: Math.round((n.costPerMb! / (1 + pct / 100)) * 1e6) / 1e6, newCost: n.costPerMb! }] : []);
+  const priceVersions = [
+    { version: 12, effectiveFrom: addDays(today, -130), syncedAt: at(-130, 2, 10), changes: [] },
+    { version: 13, effectiveFrom: addDays(today, -74), syncedAt: at(-74, 2, 10), changes: [...change(net("IT", /Vodafone/), -4), ...change(net("GR", /./), 6)] },
+    {
+      version: 14,
+      effectiveFrom: addDays(today, -32),
+      syncedAt: at(-32, 2, 10),
+      changes: [
+        ...change(net("IT", /TIM/), 12),
+        ...change(net("ES", /Vodafone/), -8),
+        ...change(net("AE", /Etisalat/), 18),
+        ...change(net("JP", /Docomo/), -6),
+        ...change(net("FR", /Orange/), -5),
+        ...change(net("TH", /./), 10),
+        ...change(net("LK", /./), 7),
+        ...change(net("DE", /./), -9),
+      ],
+    },
   ];
+
+  // ---- markup history: everyone starts at their first markup; two resellers changed since
+  const houseRetail = { id: "mh-house-0", resellerId: "house", effectiveFrom: addDays(today, -300), markupPercent: 60, previousPercent: null, changedAt: at(-300), changedBy: "u-admin", reason: "Starting retail markup" };
+  const resellerMarkups = resellers.flatMap((r) => {
+    // the starting markup applies from the day the reseller was added
+    const startDate = dateInZone(new Date(r.createdAt));
+    const changes: Record<string, { from: number; offset: number; reason: string; first: number }> = {
+      r2: { first: 12, from: 15, offset: -50, reason: "Volume agreement renewed" },
+      r3: { first: 35, from: 40, offset: -20, reason: "Higher support cost for long-stay customers" },
+    };
+    const c = changes[r.id];
+    const first = { id: `mh-${r.id}-0`, resellerId: r.id, effectiveFrom: startDate, markupPercent: c?.first ?? r.markupPercent, previousPercent: null, changedAt: r.createdAt, changedBy: "u-admin", reason: "Starting markup" };
+    return c ? [first, { id: `mh-${r.id}-1`, resellerId: r.id, effectiveFrom: addDays(today, c.offset), markupPercent: c.from, previousPercent: c.first, changedAt: at(c.offset - 1, 16, 40), changedBy: "u-admin", reason: c.reason }] : [first];
+  });
+  const markupHistory = [houseRetail, ...resellerMarkups];
 
   const resellerPlans = [
     { id: "rp1", resellerId: "r1", planId: "p-it3", name: "Rome weekend", description: "Three days of maps, messages and photos around Rome.", sellingPrice: 19, status: "active" as const, createdAt: at(-80) },
@@ -181,6 +226,8 @@ export function createSeed(now: Date = new Date()): DState {
     spreadWarningRatio: 3,
     waitingPlanCancelDays: 30,
     houseWalletLowThreshold: 500,
+    watermark: { statement: true, receipt: true, invoice: true, usage_report: true, price_list: true },
+    taxWording: "Prices exclude VAT. Telecommunication services supplied under the reverse charge where applicable.",
     lowWalletThreshold: 50,
     lowStockThreshold: 20,
     dailySaleLimit: 50,
@@ -216,6 +263,9 @@ export function createSeed(now: Date = new Date()): DState {
     audit: [],
     usage: {},
     lateDays: { r2: [addDays(today, -3)] },
+    priceVersions,
+    markupHistory,
+    supplier: { deposits: [], reportedBalance: 0, reportedAt: now.toISOString(), tolerance: 5 },
   };
 
   const walletOf = (resellerId: string | null) => (resellerId ? `w-${resellerId}` : "w-house");
@@ -240,6 +290,9 @@ export function createSeed(now: Date = new Date()): DState {
   const addPackage = (e: DEsim, plan: DPlan, opts: { start: number | null; created: number; story: PlanStory; type: "new_esim" | "add_plan"; network?: Network; maxCost?: number }) => {
     const buyer = buyerOf(e.resellerId);
     const network = opts.network ?? pickNetwork(rng, plan.zoneId, { maxCost: opts.maxCost ?? (plan.zoneId === "z-world" ? 0.004 : undefined) });
+    // some phones also use a second operator in the same country on some days
+    const others = zoneNetworks(plan.zoneId).filter((n) => n.iso2 === network.iso2 && n.id !== network.id && isPriced(n) && (plan.zoneId !== "z-world" || n.costPerMb! <= 0.004));
+    const altNetworkId = !opts.network && others.length && rng.chance(0.7) ? rng.pick(others).id : null;
     const holdAmount = holdFor(s, plan, buyer);
     const limitMb = plan.dataBytes / BYTES.MB;
     const pkgId = id("pk");
@@ -247,8 +300,6 @@ export function createSeed(now: Date = new Date()): DState {
     const holdId = id("h");
     const activation = opts.story === "pending" ? (rng.chance(0.85) ? "first_use" : "date") : rng.weighted([["first_use", 65], ["now", 30], ["date", 5]] as const);
     const createdAt = at(opts.created, rng.int(8, 20), rng.int(0, 59));
-    let chargedFinal = 0;
-    let chargedEstimated = 0;
     let state: DPackage["state"] = "pending_activation";
     let startedAt: string | null = null;
     let expiresAt: string | null = null;
@@ -271,20 +322,11 @@ export function createSeed(now: Date = new Date()): DState {
         total += rounded;
       }
       s.usage[pkgId] = { start: addDays(today, opts.start), mb } satisfies DUsage;
-      const price = buyerPricePerMb(s, buyer, network, plan.id) ?? 0;
-      const late = s.lateDays[e.resellerId ?? "house"] ?? [];
-      mb.forEach((v, d) => {
-        const day = addDays(today, opts.start! + d);
-        const amount = v * price;
-        if (opts.start! + d >= -1 || late.includes(day)) chargedEstimated += amount;
-        else chargedFinal += amount;
-      });
       const depleted = total >= limitMb - 0.05;
       state = opts.story === "deleted" ? "deleted" : opts.start + plan.validityDays <= 0 ? (depleted ? "depleted" : "expired") : depleted ? "depleted" : "active";
       if (deletedOn !== null) expiresAt = at(deletedOn, 12);
     }
 
-    const used = round2(chargedFinal + chargedEstimated);
     const live = state === "active" || state === "pending_activation";
     const hold: DHold = {
       id: holdId,
@@ -293,7 +335,7 @@ export function createSeed(now: Date = new Date()): DState {
       esimId: e.id,
       orderId,
       amount: holdAmount,
-      used: Math.min(used, holdAmount),
+      used: 0,
       status: live ? "active" : "settled",
       createdAt,
       fundedAt: createdAt,
@@ -313,9 +355,10 @@ export function createSeed(now: Date = new Date()): DState {
       state,
       adminBlocked: false,
       networkId: network.id,
+      altNetworkId,
       holdId,
-      chargedFinal: round2(chargedFinal),
-      chargedEstimated: round2(chargedEstimated),
+      chargedFinal: 0,
+      chargedEstimated: 0,
       createdAt,
     };
     const order: DOrder = {
@@ -337,6 +380,12 @@ export function createSeed(now: Date = new Date()): DState {
     s.packages.push(pkg);
     s.holds.push(hold);
     s.orders.push(order);
+    // charges come from the rated usage lines (the same rating every page uses)
+    const charged = packageCharges(s, pkg);
+    pkg.chargedFinal = charged.final;
+    pkg.chargedEstimated = charged.estimated;
+    hold.used = round2(charged.final + charged.estimated);
+    if (hold.used > hold.amount) hold.amount = Math.ceil(hold.used);
     return { pkg, hold, order };
   };
 
@@ -441,18 +490,20 @@ export function createSeed(now: Date = new Date()): DState {
     const e = newEsim("r5", -12);
     const expensive = zoneNetworks("z-world").find((n) => n.iso2 === "ID" && (n.costPerMb ?? 0) > 0.05) ?? zoneNetworks("z-world").filter(isPriced).sort((a, b) => b.costPerMb! - a.costPerMb!)[0]!;
     const { pkg, hold } = addPackage(e, planById.get("p-world10")!, { start: -10, created: -11, story: "active", type: "new_esim", network: expensive });
+    pkg.state = "active";
+    pkg.altNetworkId = null;
+    hold.amount = 150;
+    // heavy use on an expensive network: about €14 more than the hold
+    const price = buyerPricePerMb(s, { kind: "reseller", resellerId: "r5" }, expensive, pkg.planId)!;
+    const u = s.usage[pkg.id]!;
+    const per = (hold.amount + 14.4) / price / u.mb.length;
+    u.mb = u.mb.map(() => Math.round(per * 10) / 10);
+    const charged = packageCharges(s, pkg);
+    pkg.chargedFinal = charged.final;
+    pkg.chargedEstimated = charged.estimated;
     hold.used = hold.amount;
     hold.status = "exhausted";
-    pkg.state = "active";
-    const price = buyerPricePerMb(s, { kind: "reseller", resellerId: "r5" }, expensive, pkg.planId)!;
-    // keep usage consistent with the hold: the charged amount equals the hold plus the outstanding overrun
-    const mbTotal = (hold.amount + 14.37) / price;
-    const u = s.usage[pkg.id]!;
-    const per = mbTotal / u.mb.length;
-    u.mb = u.mb.map(() => Math.round(per * 10) / 10);
-    pkg.chargedFinal = round2(hold.amount + 14.37 - per * 2 * price);
-    pkg.chargedEstimated = round2(per * 2 * price);
-    s.wallets.find((w) => w.id === "w-r5")!.outstanding = 14.37;
+    s.wallets.find((w) => w.id === "w-r5")!.outstanding = round2(charged.final + charged.estimated - hold.amount);
   }
 
   // ------------------------------------------------------- eSIM statuses
@@ -565,22 +616,16 @@ export function createSeed(now: Date = new Date()): DState {
   const reservedOf = (walletId: string) =>
     s.holds.filter((h) => h.walletId === walletId && h.status === "active").reduce((sum, h) => sum + (h.amount - h.used), 0);
 
-  // usage charges per wallet per day
+  // usage charges per wallet per day: the sum of the rated package-day charges (cents)
   const chargesByWallet = new Map<string, number[]>();
-  for (const p of s.packages) {
-    const u = s.usage[p.id];
-    if (!u) continue;
-    const e = s.esims.find((x) => x.id === p.esimId)!;
-    const w = walletOf(e.resellerId);
+  forEachPackageDay(s, (_p, date, _lines, charge, owner) => {
+    const w = walletOf(owner);
     const arr = chargesByWallet.get(w) ?? new Array<number>(DAYS).fill(0);
-    const price = buyerPricePerMb(s, buyerOf(e.resellerId), NETWORK_BY_ID.get(p.networkId)!, p.planId) ?? 0;
-    u.mb.forEach((v, i) => {
-      const offset = Math.round((new Date(`${u.start}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86400000) + i;
-      const idx = offset + DAYS - 1;
-      if (idx >= 0 && idx < DAYS) arr[idx]! += v * price;
-    });
+    const idx = daysBetween(today, date) + DAYS - 1;
+    if (idx >= 0 && idx < DAYS) arr[idx]! = round2(arr[idx]! + charge);
     chargesByWallet.set(w, arr);
-  }
+  });
+  const outstandingR5 = s.wallets.find((w) => w.id === "w-r5")!.outstanding;
   // the r5 overrun beyond its hold: charged until the wallet was empty, the rest is outstanding
   const TARGET_AVAILABLE: Record<string, number | "zero"> = { "w-house": 2480, "w-r1": 0.4, "w-r2": 1240, "w-r3": 18, "w-r4": "zero", "w-r5": "zero", "w-r6": 85 };
   let receiptSeq = 0;
@@ -591,7 +636,15 @@ export function createSeed(now: Date = new Date()): DState {
     const TOPUP_DAYS: number[] = [-(DAYS - 1)];
     for (let d = -80 + ((wi * 3) % 7); d <= -3; d += 10 + (wi % 3)) TOPUP_DAYS.push(d);
     const charges = (chargesByWallet.get(w.id) ?? new Array<number>(DAYS).fill(0)).map((v) => round2(v));
-    if (w.id === "w-r5") charges[DAYS - 1]! -= 14.37; // the uncovered part never hit the ledger
+    // the r5 overrun beyond its hold was never charged to the wallet: it's the outstanding amount
+    if (w.id === "w-r5") {
+      let rem = outstandingR5;
+      for (let i = DAYS - 1; i >= 0 && rem > 0; i--) {
+        const take = Math.min(rem, charges[i]!);
+        charges[i] = round2(charges[i]! - take);
+        rem = round2(rem - take);
+      }
+    }
     const totalCharges = charges.reduce((a, b) => a + b, 0);
     const reserved = reservedOf(w.id);
     const target = TARGET_AVAILABLE[w.id];
@@ -664,6 +717,15 @@ export function createSeed(now: Date = new Date()): DState {
   ledger.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   s.ledger = ledger;
 
+  // ---- our prepaid account at Yesim: deposits, and the balance Yesim reports (a late report makes a small difference)
+  let yesimCost = 0;
+  forEachPackageDay(s, (_p, _d, lines) => lines.forEach((l) => (yesimCost += l.cost)));
+  const depositPlan: [number, number][] = [[-95, 2500], [-62, 2000], [-30, 2000], [-8, 1500]];
+  s.supplier.deposits = depositPlan.map(([offset, amount], i) => ({ id: `sd${i + 1}`, date: addDays(today, offset), amount, reference: `YS-DEP-${String(i + 1).padStart(3, "0")}` }));
+  const implied = depositPlan.reduce((a, [, amount]) => a + amount, 0) - yesimCost;
+  s.supplier.reportedBalance = round2(implied - 3.82);
+  s.supplier.reportedAt = new Date(now.getTime() - 35 * 60000).toISOString();
+
   // more top-up requests: pending, rejected, cancelled
   s.topups.push(
     { id: "t-pending-r4", resellerId: "r4", walletId: "w-r4", amount: 250, paymentReference: "BT40221873", note: "Transfer sent this morning.", status: "pending", requestedBy: "u-r4", createdAt: new Date(now.getTime() - 2 * 3600000).toISOString(), decidedAt: null, decidedBy: null, decisionNote: null, receiptNumber: null, outstandingPaid: null, plansFunded: null },
@@ -687,7 +749,7 @@ export function createSeed(now: Date = new Date()): DState {
     notify("u-admin", "An order is being verified", "The supplier didn't confirm an Italy 3 GB sale for Blue Horizon Tours.", "/esim/orders/o-verify", 50),
     notify("u-admin", "Low wallet: Nomad Connect", "Available balance is below €50.00.", "/esim/wallets/w-r3", 60 * 9),
     notify("u-admin", "Usage report is late", "Blue Horizon Tours: usage for 3 days ago is still estimated.", "/esim/transactions", 60 * 20, true),
-    notify("u-admin", "Outstanding amount: Atlas Mobile Partners", "€14.37 of usage wasn't covered. New plans are refused until it's paid.", "/esim/wallets/w-r5", 60 * 30, true),
+    notify("u-admin", "Outstanding amount: Atlas Mobile Partners", `€${outstandingR5.toFixed(2)} of usage wasn't covered. New plans are refused until it's paid.`, "/esim/wallets/w-r5", 60 * 30, true),
     notify("u-admin", "Low stock", "23 free eSIMs left (threshold 20).", null, 60 * 50, true),
     notify("u-support", "An order is being verified", "The supplier didn't confirm an Italy 3 GB sale for Blue Horizon Tours.", "/esim/orders/o-verify", 50),
     notify("u-support", "eSIM suspended by a rule", "Data use reached 100% on an eSIM with auto-suspend.", "/esim/esims", 60 * 26, true),

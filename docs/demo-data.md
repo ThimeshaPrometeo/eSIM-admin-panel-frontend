@@ -125,6 +125,16 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Documents | Monthly statements per reseller for 3 months, top-up receipts, direct-sale invoices; sequential numbers per type and year (e.g. `ST-2026-0007`) |
 | Yesim connection | Status OK, reseller B2B_ENIGMA, sponsor SP05, network profile SP05_YESEN01, writes shown as disabled (read only), daily sale limit 50 (12 used today), total cap 500 (183 used); job runs for each job |
 
+### 5.1 Financial data (spec 8.32)
+
+| Data | Shape |
+|---|---|
+| Yesim price versions | v12 (−130 days, starting prices), v13 (−74 days: Vodafone Italy −4%, one Greek network +6%), v14 (−32 days: TIM Italy +12%, Vodafone Spain −8%, Etisalat UAE +18%, NTT Docomo −6%, Orange France −5%, True Thailand +10%, Dialog Sri Lanka +7%, O2 Germany −9%). Today's catalogue price is v14; older prices are derived from it |
+| Markup history | Every reseller's starting markup from their sign-up day; Blue Horizon 12% → 15% (−50 days), Nomad Connect 35% → 40% (−20 days); retail markup 60% for direct sales |
+| Usage lines | Per plan, day and network: about a third of days split 20–70% onto a second network in the same country, so a day can have two rates |
+| Supplier account | Deposits €2,500 / €2,000 / €2,000 / €1,500; the balance Yesim reports is €3.82 below what our records imply (tolerance €5) |
+| Statements | Last three full months per reseller; opening + top-ups − usage = closing, to the cent |
+
 ## 6. Actions that change the store (spec §4.1)
 
 | Action | Effect in the demo store |
@@ -138,7 +148,9 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Approve top-up | Ledger `topup`, outstanding recovered first, receipt created, **funding queue run** (oldest first, skip ahead), waiting plans unblock, notifications |
 | Reject top-up | Status rejected with reason |
 | Suspend / reactivate eSIM | Status + `suspendedBy`; reseller can't lift admin suspensions (`ApiError 403`) |
-| Change markup | Reseller markup updated; prices recomputed from now; audit entry |
+| Change markup | Reseller markup updated; a markup-history entry applying from tomorrow (today's charges keep the old markup); audit entry |
+| Change or end a discount | The old discount ends (end date kept), the new one applies from tomorrow |
+| Change settings | Retail markup change adds a "house" markup-history entry from tomorrow; watermark switches apply to the next PDF |
 | Assistant toggles | Grants updated; switching to that assistant shows the new navigation |
 | Manual adjustment | Ledger row; never below reserved (`409 INSUFFICIENT_AVAILABLE`) |
 | End of life | Status `END_OF_LIFE`, plans ended, holds settled; further status changes `409 END_OF_LIFE_FINAL` |
@@ -146,6 +158,10 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 ## 7. Tests on the seed
 
 - Wallet invariants: `available = balance − reserved`, all ≥ 0, `outstanding ≥ 0`.
+- Rating (`rating.test.ts`, `finance.test.ts`): every line follows the formula with that day's rates; ledgers,
+  holds, statements and the profit report equal the rated charges to the cent; the waterfall closes; the
+  simulator and the price breakdown agree; resellers never receive cost or markup; no markup applies before
+  it was set.
 - Every price = cost × (1 + markup) × (1 − discount), most specific discount wins; unpriced networks never
   priced.
 - Every state listed in §5 occurs at least once.

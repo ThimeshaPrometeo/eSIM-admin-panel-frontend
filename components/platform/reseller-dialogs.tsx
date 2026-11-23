@@ -142,7 +142,7 @@ export function MarkupForm({ reseller, onDone }: { reseller: Reseller; onDone: (
       <DialogHeader>
         <DialogTitle>Change markup</DialogTitle>
         <DialogDescription>
-          {reseller.companyName} pays the supplier price plus this markup, less any discount. The change applies to usage from the moment you save, including plans already running. The reseller never sees it.
+          {reseller.companyName} pays the supplier price plus this markup, less any discount. The new price shows on the price list straight away and rates usage from tomorrow, including plans already running. Charges already made keep the markup of their day. The reseller never sees the markup.
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -169,7 +169,7 @@ export function MarkupForm({ reseller, onDone }: { reseller: Reseller; onDone: (
         <Button
           disabled={!changed || reason.trim().length < 3 || pending}
           onClick={async () => {
-            const r = await run(() => peopleApi.setResellerMarkup(reseller.id, { markupPercent: next, reason }), { success: "Markup changed", description: `${reseller.markupPercent}% → ${next}%, from now on.` });
+            const r = await run(() => peopleApi.setResellerMarkup(reseller.id, { markupPercent: next, reason }), { success: "Markup changed", description: `${reseller.markupPercent}% → ${next}%, for usage from tomorrow.` });
             if (r.ok) onDone();
           }}
         >

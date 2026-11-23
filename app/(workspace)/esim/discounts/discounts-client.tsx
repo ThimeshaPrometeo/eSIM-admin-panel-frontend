@@ -98,7 +98,7 @@ export function DiscountsClient() {
         open={!!removing}
         onOpenChange={(o) => !o && setRemoving(null)}
         title="Remove this discount?"
-        description={`${removing?.resellerName ?? ""} pays the full price${removing?.planName ? ` on ${removing.planName}` : ""} from now on.`}
+        description={`${removing?.resellerName ?? ""} pays the full price${removing?.planName ? ` on ${removing.planName}` : ""} for usage from tomorrow.`}
         confirmLabel="Remove discount"
         destructive
         onConfirm={async () => {

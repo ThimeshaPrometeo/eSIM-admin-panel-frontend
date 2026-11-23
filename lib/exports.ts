@@ -46,7 +46,7 @@ export async function exportXlsx<T>(fileName: string, sheet: string, columns: Ex
 }
 
 /** A landscape table PDF with the download watermark on every page (spec 8.22). */
-export async function exportPdf<T>(opts: { fileName: string; title: string; subtitle?: string; columns: ExportColumn<T>[]; rows: T[]; watermark: Watermark }) {
+export async function exportPdf<T>(opts: { fileName: string; title: string; subtitle?: string; columns: ExportColumn<T>[]; rows: T[]; watermark: Watermark; /** false = switched off in Settings for this document type */ watermarkOn?: boolean }) {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const mark = watermarkText(opts.watermark);
@@ -71,6 +71,7 @@ export async function exportPdf<T>(opts: { fileName: string; title: string; subt
   const h = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
+    if (opts.watermarkOn === false) continue;
     // large, diagonal, semi-transparent
     doc.saveGraphicsState();
     doc.setGState(new (doc as unknown as { GState: new (o: { opacity: number }) => unknown }).GState({ opacity: 0.13 }) as never);
