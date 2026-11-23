@@ -85,6 +85,9 @@ do some actions. **Answered: follow the backend** (hide the action for roles it 
 | Q-RESELLERALERTS | Spec 8.9 says resellers and assistants see alerts for their own eSIMs, but the reseller navigation (spec 5.4) has no Alerts tab | Added "Alerts" under eSIM management for resellers (view only) and an Alerts row in the assistant permission matrix (13 areas) |
 | Q-WEBHOOKS | Webhook URLs on the Yesim connection page | Proposed paths `/api/v1/webhooks/yesim/esim-events` and `/usage-reports` on our own origin (BB-25); confirm the real ones |
 | Q-ALERTTYPES2 | The ten alert types in spec 8.9 | UI uses the backend names from Q-ALERTTYPES (`unpriced_network_usage`, `usage_rating_late`, `plan_held_by_daily_limit`, …); `zone_unpriced_networks` and `plan_waiting_funds` get labels once the definitive list arrives (BB-11) |
+| Q-STAFFINVITE | How does a new staff user get their first password? | Demo shows a temporary password once to the admin (forced change and 2FA at first sign-in). If the backend emails an invite link instead, the dialog says so (BB-26) |
+| Q-MFARESET | Does "Reset 2FA" also remove passkeys? | Yes in the demo (a lost phone often holds the passkey too); the dialog says so |
+| Q-2FASKIP | The 2FA prompt's "Remind me next time" | Lasts for the browser session; removed at go-live when 2FA becomes required (Q-ROUTE2FA) |
 
 ## 5. Repository
 

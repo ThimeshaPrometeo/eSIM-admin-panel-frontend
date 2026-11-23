@@ -14,9 +14,9 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | `/` | 8.31 | public | redirect to `/esim/dashboard` when signed in | `login` (POST /auth/login), `passkeyLoginOptions`, `passkeyLogin` | `SignInView`, `Globe` (hero), `ShaderBackground`, `PasswordField` | yes |
 | `/login/2fa` | 8.31 | after password | needs pending-MFA state | `verifyMfa` (POST /auth/mfa/verify), `passkeyAssert` | `OtpInput` (6 digits / recovery code toggle) | yes |
 | `/login/change-password` | 8.31 | signed in, `mustChangePassword` | forced | `changePassword` (POST /auth/change-password) | `PasswordStrength` | yes |
-| `/login/setup-2fa` *(new, Q-ROUTE2FA)* | 8.31 | signed in, not enrolled | prompted (enforced from go-live) | `setupTotp`, `enableTotp` | `TotpSetup`, `RecoveryCodes` | yes (skippable) |
-| `/forgot-password` | 8.31 | public | | `forgotPassword` | | no |
-| `/reset-password` | 8.31 | public | `?token=` | `resetPassword` | | no |
+| `/login/setup-2fa` *(new, Q-ROUTE2FA)* | 8.31 | signed in, not enrolled | prompted (enforced from go-live) | `setupTotp`, `enableTotp` | `TotpSetup`, `RecoveryCodes` | yes (Phase 7) |
+| `/forgot-password` | 8.31 | public | | `forgotPassword` | | yes (Phase 7) |
+| `/reset-password` | 8.31 | public | `?token=` | `resetPassword` | | yes (Phase 7) |
 
 ## 2. Workspace (`app/esim/*`, inside `AppShell`)
 
@@ -49,18 +49,18 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | `/esim/topup-requests` | 8.21 | A S | `topup_requests:manage` (A/S) | `listTopupRequests`, `approveTopupRequest`, `rejectTopupRequest` | `TopupRequestsView`, `ApproveDialog`, `ReasonDialog` | yes |
 | `/esim/invoices` | 8.22 | A S R As | `invoices:view` | `listInvoices`, `downloadInvoicePdf` (watermarked) | `InvoicesView` | yes (Phase 5–6) |
 | `/esim/profit` | 8.23 | A S | `profit_reports:view` | `getProfitReport`, `getYesimCost`, `getReconciliation`, exports | `ProfitView` | yes (Phase 5–6) |
-| `/esim/users` | 8.24 | A S | `users:view` | `listUsers`, `createUser`, `updateUser`, `setUserStatus`, `changeUsername` (A), `resetUserMfa` (A), `sendPasswordReset` | `UsersView` | no |
-| `/esim/staff-roles` | 8.25 | A S | `staff_roles:view` | `listStaffRoles`, `createStaffRole`, `setStaffRolePermissions`, `getPermissionModules` | `StaffRolesView`, `PermissionMatrix` | no |
+| `/esim/users` | 8.24 | A S | `users:view` | `listUsers`, `createUser`, `updateUser`, `setUserStatus`, `changeUsername` (A), `resetUserMfa` (A), `sendPasswordReset` | `UsersView` | yes (Phase 7) |
+| `/esim/staff-roles` | 8.25 | A S | `staff_roles:view` | `listStaffRoles`, `createStaffRole`, `setStaffRolePermissions`, `getPermissionModules` | `StaffRolesView`, `PermissionMatrix` | yes (Phase 7) |
 | `/esim/settings` | 8.26 | A S | `settings:view` | `getSettings`, `updateSettings` | `SettingsView` | yes (Phase 5–6) |
 | `/esim/yesim` | 8.27 | A S | `yesim_connection:view` | `getYesimConnection`, `listJobRuns`, `runJob` (A), `listYesimLogs` | `YesimConnectionView` | yes (Phase 6) |
-| `/esim/audit-log` | 8.28 | A S | `audit_log:view` | `listAuditLogs`, `getAuditLog` | `AuditLogView`, `DiffView` | no |
+| `/esim/audit-log` | 8.28 | A S | `audit_log:view` | `listAuditLogs`, `getAuditLog` | `AuditLogView`, `DiffView` | yes (Phase 7) |
 
 ## 3. Everyone (inside `AppShell`)
 
 | Route | Spec | Data functions | Components | Demo |
 |---|---|---|---|---|
-| `/notifications` | 8.29 | `listNotifications`, `markNotificationRead`, `markAllNotificationsRead` | `NotificationsView` | bell + list only |
-| `/profile` (tabs `?tab=profile\|security\|notifications`) | 8.30 | `getMe`, `updateResellerProfile` (R), `changePassword`, `setupTotp`, `enableTotp`, `disableTotp`, `regenerateRecoveryCodes`, `listPasskeys`, `registerPasskey`, `deletePasskey`, `logoutAll` | `ProfileView`, `TotpSetup`, `PasskeyList` | no |
+| `/notifications` | 8.29 | `listNotifications`, `markNotificationRead`, `markAllNotificationsRead` | `NotificationsView` | yes (Phase 7) |
+| `/profile`, `/profile/security` | 8.30 | `getMe`, `updateResellerProfile` (R), `changePassword`, `setupTotp`, `enableTotp`, `disableTotp`, `regenerateRecoveryCodes`, `listPasskeys`, `registerPasskey`, `deletePasskey`, `logoutAll` | `ProfileView`, `TotpSetup`, `PasskeyList` | yes (Phase 7) |
 | `/forbidden` (rendered in place, not navigated) | 5.4 | | `AccessDenied` | yes |
 | `/design-system` | 7.7 | none | everything | yes (dev only, `notFound()` in production) |
 
@@ -91,7 +91,7 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | Customer management | Customers → `/esim/customers` |
 | Finance | Wallet → `/esim/wallet` · Transactions → `/esim/transactions` · Invoices → `/esim/invoices` |
 | Team management | Assistants → `/esim/assistants` (module `team`) |
-| Settings | Profile → `/profile` · Security → `/profile?tab=security` · Notifications → `/profile?tab=notifications` (always visible) |
+| Settings | Profile → `/profile` · Security → `/profile/security` · Notifications → `/notifications` (always visible) |
 
 Note: the reseller tree has no Discounts tab, but resellers have `discounts:view` (own). Assumption: no tab;
 their discount is already inside their prices (Q-RDISC).

@@ -163,6 +163,7 @@ export function meFor(s: DState, u: DUser): Me {
     permissions,
     mustChangePassword: u.mustChangePassword,
     mfaEnrolled: u.mfaEnrolled,
+    hasPasskey: u.passkeys.length > 0,
     timeZone: "Asia/Colombo",
   };
 }

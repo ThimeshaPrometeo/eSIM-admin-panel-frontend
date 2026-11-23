@@ -56,6 +56,8 @@ export type Me = {
   permissions: Permissions;
   mustChangePassword: boolean;
   mfaEnrolled: boolean;
+  /** At least one passkey (counts as two-factor, D59). */
+  hasPasskey: boolean;
   timeZone: string;
 };
 
@@ -754,3 +756,54 @@ export type SupplierStatus = {
 export type CustomerDetail = Customer & {
   esims: { id: string; iccid: string; status: import("./status").EsimStatus; suspendedBy: import("./status").SuspendedBy | null; planName: string | null; lastActivityAt: string | null }[];
 };
+
+// ---------------------------------------------------------------- accounts (spec 8.24, 8.25, 8.28, 8.30)
+
+export type UserAccount = {
+  id: string;
+  username: string;
+  fullName: string;
+  email: string;
+  role: Role;
+  resellerId: string | null;
+  resellerName: string | null;
+  staffRoleId: string | null;
+  staffRoleName: string | null;
+  status: "active" | "disabled";
+  locked: boolean;
+  lockedUntil: string | null;
+  /** Authenticator app set up. */
+  mfaApp: boolean;
+  passkeys: number;
+  mustChangePassword: boolean;
+  lastSignInAt: string | null;
+  createdAt: string;
+};
+
+export type StaffRole = { id: string; name: string; grants: import("./permission-matrix").Grants; members: { id: string; fullName: string }[] };
+
+export type AuditRecord = {
+  id: string;
+  at: string;
+  actorId: string | null;
+  actorName: string;
+  actorUsername: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  summary: string;
+  resellerName: string | null;
+  ip: string | null;
+  changes: { field: string; before: string; after: string }[] | null;
+};
+
+export type MySecurity = {
+  username: string;
+  fullName: string;
+  email: string;
+  app: { enabled: boolean; enabledAt: string | null; recoveryCodesLeft: number };
+  passkeys: { id: string; name: string; createdAt: string; lastUsedAt: string | null }[];
+  lastSignInAt: string | null;
+};
+
+export type TotpSetup = { secret: string; otpauthUri: string };

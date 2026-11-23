@@ -358,8 +358,9 @@ export const demoOperations = {
       const r = c.s.alertRules.find((x) => x.id === id);
       if (!r) throw new ApiError(404, "NOT_FOUND");
       const before = ruleLabel(r);
+      const wasOn = r.enabled;
       Object.assign(r, input, { updatedAt: nowIso() });
-      audit(c, "alert_rule.updated", "alert_rule", r.id, `Rule ${before} → ${ruleLabel(r)}${r.enabled ? "" : " (off)"}`, null);
+      audit(c, "alert_rule.updated", "alert_rule", r.id, `Rule ${before} → ${ruleLabel(r)}${r.enabled ? "" : " (off)"}`, null, [{ field: "Rule", before: `${before}${wasOn ? "" : " (off)"}`, after: `${ruleLabel(r)}${r.enabled ? "" : " (off)"}` }]);
       return ruleView(c.s, r);
     }),
   deleteAlertRule: (id: string) =>
@@ -396,10 +397,13 @@ export const demoOperations = {
       if (!x || !inScope(c, x.resellerId)) throw new ApiError(404, "NOT_FOUND");
       if (!input.name.trim()) throw new ApiError(400, "NAME_REQUIRED", "Enter the customer's name.");
       if (input.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) throw new ApiError(400, "INVALID_EMAIL", "Enter a valid email address.");
+      const before = { Name: x.name, Email: x.email, Phone: x.phone };
       x.name = input.name.trim();
       x.email = input.email.trim();
       x.phone = input.phone.trim();
-      audit(c, "customer.updated", "customer", x.id, `Customer ${x.name} updated`, x.resellerId);
+      const after = { Name: x.name, Email: x.email, Phone: x.phone };
+      const diff = (Object.keys(before) as (keyof typeof before)[]).filter((k) => before[k] !== after[k]).map((k) => ({ field: k, before: before[k] || "—", after: after[k] || "—" }));
+      audit(c, "customer.updated", "customer", x.id, `Customer ${x.name} updated`, x.resellerId, diff);
       return customerView(c.s, x);
     }),
 

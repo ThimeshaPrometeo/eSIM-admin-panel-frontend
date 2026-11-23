@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -112,6 +114,14 @@ type Projection = { x: number; y: number; visible: boolean };
  * Brand: the logo mark only, until tenant settings (white-label) supply a name
  * and logo. `embedded` sizes it to its container (design-system page).
  */
+const CardRefContext = createContext<RefObject<HTMLFormElement | null> | null>(null);
+/** The card's form ref (the signal from the globe lands on it). */
+export function useCardRef() {
+  const ref = useContext(CardRefContext);
+  if (!ref) throw new Error("useCardRef outside SignInView");
+  return ref;
+}
+
 export function SignInView({
   countryCount,
   events,
@@ -127,6 +137,8 @@ export function SignInView({
   error,
   notice,
   embedded,
+  card: customCard,
+  tall,
 }: {
   /** Countries with at least one priced network, from the network data. */
   countryCount: number;
@@ -145,6 +157,10 @@ export function SignInView({
   error?: string | null;
   notice?: ReactNode;
   embedded?: boolean;
+  /** Another card on the same page (forgot or reset password, 2FA set-up); it gets the card ref from `useCardRef`. */
+  card?: ReactNode;
+  /** A taller card: hides the sub-copy and stats to make room. */
+  tall?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const globeHost = useRef<HTMLDivElement>(null);
@@ -177,17 +193,19 @@ export function SignInView({
 
           <div className="flex flex-col gap-5 short:gap-3">
             <Headline />
-            <p className="si-enter max-w-[46ch] text-[18px] leading-[1.6] text-[var(--si-fg-muted)] short:text-[16px] short:leading-[1.5] tiny:hidden" style={{ "--i": 4 } as CSSProperties}>
+            <p className={cn("si-enter max-w-[46ch] text-[18px] leading-[1.6] text-[var(--si-fg-muted)] short:text-[16px] short:leading-[1.5] tiny:hidden", tall && "hidden")} style={{ "--i": 4 } as CSSProperties}>
               {SIGN_IN_COPY.sub}
             </p>
           </div>
 
-          <div className="si-enter mini:hidden" style={{ "--i": 5 } as CSSProperties}>
+          <div className={cn("si-enter mini:hidden", tall && "hidden")} style={{ "--i": 5 } as CSSProperties}>
             <StatsStrip countryCount={countryCount} />
           </div>
 
           <div className="si-enter" style={{ "--i": 6 } as CSSProperties}>
-            {step === "change-password" ? (
+            {customCard ? (
+              <CardRefContext.Provider value={card}>{customCard}</CardRefContext.Provider>
+            ) : step === "change-password" ? (
               <ChangePasswordCard ref={card} onSubmit={onChangePassword} busy={busy} error={error} />
             ) : step === "two-factor" ? (
               <TwoFactorCard ref={card} onVerify={onVerify} onBack={onBack} busy={busy} error={error} notice={notice} />
@@ -625,11 +643,11 @@ function IconTile({ children }: { children: ReactNode }) {
 
 // -------------------------------------------------------------------- card --
 
-const labelClass = "text-[13px] font-medium text-[var(--si-fg-muted)]";
-const linkClass =
+export const labelClass = "text-[13px] font-medium text-[var(--si-fg-muted)]";
+export const linkClass =
   "si-hit rounded text-[13px] font-medium text-[var(--si-link)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--si-blue)]";
 
-function CardShell({
+export function CardShell({
   ref,
   title,
   sub,
@@ -946,7 +964,7 @@ function TwoFactorCard({
   );
 }
 
-function CardFoot() {
+export function CardFoot() {
   const c = SIGN_IN_COPY.card;
   return (
     <div className="mt-5 flex flex-col items-center gap-1.5 text-center text-[12px] text-[var(--si-fg-subtle)] short:mt-3 tiny:mt-2.5">
@@ -958,7 +976,7 @@ function CardFoot() {
     </div>
   );
 }
-function Spinner() {
+export function Spinner() {
   return (
     <svg className="size-[18px] animate-spin" viewBox="0 0 24 24" fill="none" role="img" aria-label="Signing in">
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />

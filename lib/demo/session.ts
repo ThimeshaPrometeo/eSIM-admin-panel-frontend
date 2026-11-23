@@ -8,7 +8,8 @@ import { can } from "@/lib/platform/permissions";
 import type { Level } from "@/lib/platform/permission-matrix";
 import type { Me, Module } from "@/lib/platform/types";
 import { meFor } from "./derive";
-import type { DState, DUser } from "./model";
+import { demoIp } from "./ip";
+import type { DAudit, DState, DUser } from "./model";
 import { db } from "./store";
 
 export type Caller = { s: DState; u: DUser; me: Me; tenant: boolean; resellerId: string | null };
@@ -45,8 +46,8 @@ export function nowIso() {
   return new Date().toISOString();
 }
 
-export function audit(c: Caller, action: string, entityType: string, entityId: string, summary: string, resellerId: string | null) {
-  c.s.audit.unshift({ id: `a${++c.s.seq}`, actorId: c.u.id, action, entityType, entityId, summary, resellerId, createdAt: nowIso() });
+export function audit(c: Caller, action: string, entityType: string, entityId: string, summary: string, resellerId: string | null, changes: DAudit["changes"] = null) {
+  c.s.audit.unshift({ id: `a${++c.s.seq}`, actorId: c.u.id, action, entityType, entityId, summary, resellerId, createdAt: nowIso(), ip: demoIp(c.u.id), changes });
 }
 
 export function notify(s: DState, userIds: string[], title: string, body: string, href: string | null) {

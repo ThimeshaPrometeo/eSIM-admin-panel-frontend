@@ -142,6 +142,18 @@ function chargeLine(s: DState, l: RatedLine, tenant: boolean, iccid: string): Ch
 export type SimulateInput = { resellerId: string | "direct"; iso2?: string | null; networkId?: string | null; bytes: number };
 export type ChargeQuery = { packageId: string; date?: string | null } | { walletId: string; date: string };
 
+const SETTING_LABEL: Record<string, string> = {
+  defaultMarkupPercent: "Default markup (%)",
+  retailMarkupPercent: "Retail markup (%)",
+  spreadWarningRatio: "Price spread warning (×)",
+  waitingPlanCancelDays: "Cancel unfunded plans after (days)",
+  houseWalletLowThreshold: "House wallet warning (€)",
+  lowWalletThreshold: "Low wallet warning (€)",
+  lowStockThreshold: "Low stock warning (eSIMs)",
+  watermark: "PDF watermark",
+  taxWording: "Tax wording",
+};
+
 export const demoFinance = {
   /** Admin/staff price breakdown for one to three resellers (today's rates). */
   getPriceBreakdown: (resellerIds: string[]) =>
@@ -499,13 +511,18 @@ export const demoFinance = {
           changedBy: c.u.id,
           reason: "Retail markup changed in settings",
         });
+      const diff: { field: string; before: string; after: string }[] = [];
+      const show = (x: unknown) => (typeof x === "object" ? Object.entries(x as object).map(([k, on]) => `${k} ${on ? "on" : "off"}`).join(", ") : String(x));
       for (const [k, v] of Object.entries(input)) {
         if (v === undefined) continue;
         const key = k as keyof typeof st;
-        if (JSON.stringify(st[key]) !== JSON.stringify(v)) changed.push(k);
+        if (JSON.stringify(st[key]) !== JSON.stringify(v)) {
+          changed.push(k);
+          diff.push({ field: SETTING_LABEL[k] ?? k, before: show(st[key]), after: show(v) });
+        }
         (st as Record<string, unknown>)[key] = v;
       }
-      if (changed.length) audit(c, "settings.updated", "settings", "tenant", `Settings changed: ${changed.join(", ")}`, null);
+      if (changed.length) audit(c, "settings.updated", "settings", "tenant", `Settings changed: ${changed.join(", ")}`, null, diff);
       return settingsView(c);
     }),
 };

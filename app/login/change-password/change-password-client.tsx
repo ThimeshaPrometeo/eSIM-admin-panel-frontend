@@ -1,24 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInView } from "@/components/platform/sign-in-view";
 import { usePlatform } from "@/contexts/platform-context";
 import { errorMessage } from "@/lib/api/errors";
-import { SIGN_IN_DATA } from "../../sign-in-client";
+import { landingPath, nextPath, SIGN_IN_DATA } from "../../sign-in-client";
 
 /** Forced password change on first sign-in (spec 8.31). */
 export function ChangePasswordClient() {
   const { status, me, changePassword } = usePlatform();
   const router = useRouter();
+  const next = nextPath(useSearchParams().get("next"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "signed_out") router.replace("/");
-    else if (status === "signed_in" && me && !me.mustChangePassword && !busy) router.replace("/esim/dashboard");
-  }, [status, me, busy, router]);
+    else if (status === "signed_in" && me && !me.mustChangePassword && !busy) router.replace(landingPath(me, next));
+  }, [status, me, busy, router, next]);
 
   return (
     <SignInView
@@ -32,9 +33,9 @@ export function ChangePasswordClient() {
         setBusy(true);
         setError(null);
         try {
-          await changePassword(currentPassword, newPassword);
+          const nextMe = await changePassword(currentPassword, newPassword);
           toast.success("Password changed");
-          router.replace("/esim/dashboard");
+          router.replace(landingPath(nextMe, next));
         } catch (e) {
           setError(errorMessage(e));
           setBusy(false);

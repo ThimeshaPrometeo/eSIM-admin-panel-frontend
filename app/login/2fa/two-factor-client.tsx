@@ -6,7 +6,7 @@ import { SignInView } from "@/components/platform/sign-in-view";
 import { usePlatform } from "@/contexts/platform-context";
 import { authApi } from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/errors";
-import { nextPath, SIGN_IN_DATA } from "../../sign-in-client";
+import { landingPath, nextPath, SIGN_IN_DATA } from "../../sign-in-client";
 
 export function TwoFactorClient() {
   const { status, me, verifyMfa } = usePlatform();
@@ -18,7 +18,7 @@ export function TwoFactorClient() {
 
   useEffect(() => {
     if (status === "signed_in" && me) {
-      router.replace(me.mustChangePassword ? "/login/change-password" : next);
+      router.replace(landingPath(me, next));
       return;
     }
     // without a password step first there's nothing to verify
@@ -39,7 +39,7 @@ export function TwoFactorClient() {
         setError(null);
         try {
           const nextMe = await verifyMfa(code, method);
-          router.replace(nextMe.mustChangePassword ? "/login/change-password" : next);
+          router.replace(landingPath(nextMe, next));
         } catch (e) {
           setError(errorMessage(e));
           setBusy(false);

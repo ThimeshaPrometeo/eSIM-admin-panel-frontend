@@ -12,6 +12,7 @@ import { BYTES } from "@/lib/platform/units";
 import { CATALOGUE, zoneNetworks } from "./catalogue";
 import { forEachPackageDay, packageCharges } from "./rating";
 import { available } from "./derive";
+import { demoIp } from "./ip";
 import type { DAlert, DAudit, DEsim, DHold, DLedger, DNotification, DOrder, DPackage, DPlan, DState, DTopup, DUsage, DUser } from "./model";
 import { SCHEMA_VERSION } from "./model";
 import { buyerPricePerMb, holdFor, round2, type Buyer } from "./pricing";
@@ -84,14 +85,26 @@ export function createSeed(now: Date = new Date()): DState {
     grants: {},
     status: "active",
     locked: false,
+    lockedUntil: null,
     mfaEnrolled: true,
+    mfaEnrolledAt: null,
+    recoveryCodesLeft: 10,
+    passkeys: [],
     mustChangePassword: false,
     lastSignInAt: at(-rng.int(0, 6), rng.int(8, 18), rng.int(0, 59)),
     createdAt: at(-rng.int(120, 320)),
     ...u,
   });
   const users: DUser[] = [
-    user({ id: "u-admin", username: "nadeesha", fullName: "Nadeesha Perera", email: "nadeesha@company.example", role: "admin" }),
+    user({
+      id: "u-admin",
+      username: "nadeesha",
+      fullName: "Nadeesha Perera",
+      email: "nadeesha@company.example",
+      role: "admin",
+      recoveryCodesLeft: 8,
+      passkeys: [{ id: "pk-1", name: "MacBook Touch ID", createdAt: at(-140, 10, 12), lastUsedAt: at(-1, 9, 2) }],
+    }),
     user({ id: "u-support", username: "kasun", fullName: "Kasun Silva", email: "kasun@company.example", role: "staff", staffRoleId: "sr-support" }),
     // a new Finance colleague: first sign-in still to come (forced password change, 2FA not set up yet)
     user({ id: "u-finance", username: "dilini", fullName: "Dilini Fernando", email: "dilini@company.example", role: "staff", staffRoleId: "sr-finance", mfaEnrolled: false, mustChangePassword: true, lastSignInAt: null, createdAt: at(-2) }),
@@ -122,8 +135,11 @@ export function createSeed(now: Date = new Date()): DState {
       role: "assistant",
       resellerId: "r1",
       grants: { dashboard: "view", wallets: "view", transactions: "view", invoices: "view", topup_requests: "manage" },
+      // 10 failed sign-ins a few minutes ago: locked until an admin unlocks or 15 minutes pass
+      locked: true,
+      lockedUntil: new Date(now.getTime() + 11 * 60000).toISOString(),
     }),
-    user({ id: "u-ruwan", username: "ruwan", fullName: "Ruwan Dissanayake", email: "ruwan@lankaroam.example", role: "assistant", resellerId: "r1", status: "disabled", grants: { dashboard: "view" } }),
+    user({ id: "u-ruwan", username: "ruwan", fullName: "Ruwan Dissanayake", email: "ruwan@lankaroam.example", role: "assistant", resellerId: "r1", status: "disabled", grants: { dashboard: "view" }, lastSignInAt: at(-16, 17, 40) }),
   ];
 
   const FIRST = ["Nimal", "Dinithi", "Ayesha", "Chamara", "Hiruni", "Kavindu", "Sanduni", "Tharindu", "Isuru", "Nethmi", "Sachini", "Lahiru", "Oshadi", "Ravindu", "Anjali", "Mihiri", "Yasas", "Pasindu", "Gayani", "Dulaj", "Emma", "Lucas", "Sofia", "Noah", "Mia", "Leo", "Hana", "Arjun", "Priya", "Omar"];
@@ -274,6 +290,8 @@ export function createSeed(now: Date = new Date()): DState {
     ],
     stockDeliveries: [],
     jobRuns: {},
+    mfaSetup: null,
+    resetTokens: [],
   };
 
   const walletOf = (resellerId: string | null) => (resellerId ? `w-${resellerId}` : "w-house");
@@ -742,7 +760,7 @@ export function createSeed(now: Date = new Date()): DState {
   // more top-up requests: pending, rejected, cancelled
   s.topups.push(
     { id: "t-pending-r4", resellerId: "r4", walletId: "w-r4", amount: 250, paymentReference: "BT40221873", note: "Transfer sent this morning.", status: "pending", requestedBy: "u-r4", createdAt: new Date(now.getTime() - 2 * 3600000).toISOString(), decidedAt: null, decidedBy: null, decisionNote: null, receiptNumber: null, outstandingPaid: null, plansFunded: null },
-    { id: id("t"), resellerId: "r3", walletId: "w-r3", amount: 500, paymentReference: "BT11930455", note: "", status: "rejected", requestedBy: "u-r3", createdAt: at(-6, 16), decidedAt: at(-5, 10), decidedBy: "u-finance", decisionNote: "Payment not received. Please check the bank reference.", receiptNumber: null, outstandingPaid: null, plansFunded: null },
+    { id: id("t"), resellerId: "r3", walletId: "w-r3", amount: 500, paymentReference: "BT11930455", note: "", status: "rejected", requestedBy: "u-r3", createdAt: at(-6, 16), decidedAt: at(-5, 10), decidedBy: "u-admin", decisionNote: "Payment not received. Please check the bank reference.", receiptNumber: null, outstandingPaid: null, plansFunded: null },
     { id: id("t"), resellerId: "r1", walletId: "w-r1", amount: 100, paymentReference: "", note: "Wrong amount", status: "cancelled", requestedBy: "u-r1", createdAt: at(-18, 12), decidedAt: at(-18, 12, 20), decidedBy: "u-r1", decisionNote: null, receiptNumber: null, outstandingPaid: null, plansFunded: null },
   );
 
@@ -806,7 +824,7 @@ export function createSeed(now: Date = new Date()): DState {
       s.alerts.push(alert({ type: "outstanding_balance", severity: "danger", title: "Outstanding amount: Atlas Mobile Partners", detail: `€${r5.outstanding.toFixed(2)} of usage wasn't covered by the hold. New plans are refused until it's paid.`, resellerId: "r5", href: "/esim/wallets/w-r5", status: "open", createdAt: ago(60 * 30) }));
     s.alerts.push(
       alert({ type: "order_needs_check", severity: "warning", title: "An order is being verified", detail: "The supplier didn't confirm an Italy 3 GB sale for Blue Horizon Tours. Don't sell again until it's checked.", resellerId: "r2", href: "/esim/orders/o-verify", status: "open", createdAt: ago(50) }),
-      alert({ type: "usage_rating_late", severity: "warning", title: "Usage report is late: Blue Horizon Tours", detail: `Usage for ${formatDate(`${addDays(today, -3)}T12:00:00Z`)} is still estimated; the supplier's nightly report hasn't arrived.`, resellerId: "r2", href: "/esim/transactions", status: "acknowledged", createdAt: ago(60 * 20), updatedAt: ago(60 * 18), updatedBy: "u-finance" }),
+      alert({ type: "usage_rating_late", severity: "warning", title: "Usage report is late: Blue Horizon Tours", detail: `Usage for ${formatDate(`${addDays(today, -3)}T12:00:00Z`)} is still estimated; the supplier's nightly report hasn't arrived.`, resellerId: "r2", href: "/esim/transactions", status: "acknowledged", createdAt: ago(60 * 20), updatedAt: ago(60 * 18), updatedBy: "u-support" }),
       alert({ type: "unpriced_network_usage", severity: "warning", title: "Usage on a network with no price", detail: "A phone used a network that has no Yesim price. That usage is held, not charged, until the price list has a price for it.", href: "/esim/coverage", status: "resolved", createdAt: at(-12, 4, 10), updatedAt: at(-11, 9, 30), updatedBy: "u-admin" }),
       alert({ type: "plan_held_by_daily_limit", severity: "danger", title: "Daily sale limit reached", detail: `All ${settings.dailySaleLimit} sales allowed by the supplier for the day were used; further sales were refused until midnight.`, status: "resolved", createdAt: at(-9, 17, 42), updatedAt: at(-8, 0, 1) }),
       alert({ type: "low_stock", severity: "warning", title: "Low stock", detail: `17 free eSIMs left, below the warning at ${settings.lowStockThreshold}. Resolved by delivery STOCK-2026-04.`, href: "/esim/inventory", status: "resolved", createdAt: at(-37, 11, 5), updatedAt: at(-36, 10, 0) }),
@@ -820,7 +838,7 @@ export function createSeed(now: Date = new Date()): DState {
       else if (low && l.type === "deposit" && l.balanceAfter >= settings.houseWalletLowThreshold) {
         const lowAt = low;
         const last = s.alerts.find((a) => a.type === "house_wallet_low");
-        const a = alert({ type: "house_wallet_low", severity: "warning", title: "House wallet low", detail: `The house wallet went below €${settings.houseWalletLowThreshold.toFixed(2)} (€${lowAt.balanceAfter.toFixed(2)}). Resolved by deposit ${l.reference}.`, href: "/esim/wallets/w-house", status: "resolved", createdAt: lowAt.createdAt, updatedAt: l.createdAt, updatedBy: "u-finance" });
+        const a = alert({ type: "house_wallet_low", severity: "warning", title: "House wallet low", detail: `The house wallet went below €${settings.houseWalletLowThreshold.toFixed(2)} (€${lowAt.balanceAfter.toFixed(2)}). Resolved by deposit ${l.reference}.`, href: "/esim/wallets/w-house", status: "resolved", createdAt: lowAt.createdAt, updatedAt: l.createdAt, updatedBy: "u-admin" });
         if (last) Object.assign(last, a);
         else s.alerts.push(a);
         low = null;
@@ -855,7 +873,7 @@ export function createSeed(now: Date = new Date()): DState {
     notify("u-r1", "Top-up approved", "Your top-up was added to your wallet.", "/esim/wallet", 60 * 24 * 12, true),
     notify("u-sahan", "Data use at 80%", `eSIM …${v.iccid.slice(-6)} has used 80% of its plan.`, `/esim/esims/${v.id}`, 60 * 5),
   );
-  const audit = (actorId: string | null, action: string, entityType: string, entityId: string, summary: string, resellerId: string | null, offsetDays: number): DAudit => ({
+  const audit = (actorId: string | null, action: string, entityType: string, entityId: string, summary: string, resellerId: string | null, createdAt: string, changes: DAudit["changes"] = null): DAudit => ({
     id: id("a"),
     actorId,
     action,
@@ -863,17 +881,47 @@ export function createSeed(now: Date = new Date()): DState {
     entityId,
     summary,
     resellerId,
-    createdAt: at(offsetDays, rng.int(9, 18), rng.int(0, 59)),
+    createdAt,
+    ip: demoIp(actorId),
+    changes,
   });
-  s.audit.push(
-    audit("u-admin", "reseller.markup_changed", "reseller", "r3", "Markup changed from 35% to 40%", "r3", -20),
-    audit("u-admin", "discount.created", "discount", "d2", "Discount 10% on Italy 3 GB", "r1", -60),
-    audit("u-r1", "assistant.disabled", "user", "u-ruwan", "Assistant Ruwan Dissanayake disabled", "r1", -15),
-    audit("u-r1", "esim.credentials_viewed", "esim", v.id, "PIN and PUK shown", "r1", -2),
-    audit("u-finance", "topup.rejected", "topup_request", "t-r3", "Top-up of €500.00 rejected", "r3", -5),
-    audit("u-admin", "reseller.status_changed", "reseller", "r6", "Reseller suspended", "r6", -30),
-    audit("u-admin", "document.downloaded", "invoice", "ST-2026-0007", "Statement downloaded", "r2", -4),
+  const nameOf = (rid: string | null) => s.resellers.find((r) => r.id === rid)?.companyName ?? "Direct sales";
+  const planNameOf = (pid: string | null) => s.plans.find((p) => p.id === pid)?.name ?? "all plans";
+  const nowIsoSeed = now.toISOString();
+  const past = (iso: string) => (iso < nowIsoSeed ? iso : new Date(now.getTime() - 60000).toISOString());
+  const entries: DAudit[] = [];
+  // sign-ins: each user's last one, and daily ones for our own team
+  for (const u of s.users) if (u.lastSignInAt) entries.push(audit(u.id, "auth.signed_in", "user", u.id, `${u.fullName} signed in${u.passkeys.length && u.id === "u-admin" ? " with a passkey" : ""}`, u.resellerId, past(u.lastSignInAt)));
+  for (const uid of ["u-admin", "u-support"]) for (let d = 1; d <= 14; d++) entries.push(audit(uid, "auth.signed_in", "user", uid, `${s.users.find((u) => u.id === uid)!.fullName} signed in`, null, at(-d, 8, 30 + (d % 20))));
+  const locked = s.users.find((u) => u.locked);
+  if (locked) entries.push(audit(locked.id, "auth.locked", "user", locked.id, `${locked.fullName}: account locked after 10 failed sign-ins`, locked.resellerId, new Date(now.getTime() - 4 * 60000).toISOString()));
+  // sales and added plans
+  for (const o of s.orders) {
+    const plan = planNameOf(o.planId);
+    entries.push(audit(o.userId, o.type === "new_esim" ? "order.created" : "order.plan_added", "order", o.id, `${o.type === "new_esim" ? "Sold an eSIM" : "Added a plan"}: ${plan} (${nameOf(o.resellerId)})`, o.resellerId, past(o.createdAt)));
+  }
+  // top-up requests decided
+  for (const t of s.topups)
+    if (t.decidedAt && t.decidedBy && t.status !== "pending")
+      entries.push(audit(t.decidedBy, `topup.${t.status}`, "topup_request", t.id, `Top-up of €${t.amount.toFixed(2)} ${t.status}${t.receiptNumber ? ` (${t.receiptNumber})` : ""}`, t.resellerId, past(t.decidedAt)));
+  // markup and discount changes, price list versions
+  for (const m of s.markupHistory)
+    if (m.previousPercent !== null && m.resellerId !== "house")
+      entries.push(audit(m.changedBy, "reseller.markup_changed", "reseller", m.resellerId, `Markup changed from ${m.previousPercent}% to ${m.markupPercent}%: ${m.reason}`, m.resellerId, m.changedAt, [{ field: "Markup", before: `${m.previousPercent}%`, after: `${m.markupPercent}%` }]));
+  for (const d of s.discounts)
+    entries.push(audit(d.createdBy ?? "u-admin", "discount.created", "discount", d.id, `Discount ${d.percent}% on ${planNameOf(d.planId)} for ${nameOf(d.resellerId)}`, d.resellerId, past(d.createdAt), [{ field: "Discount", before: "—", after: `${d.percent}%` }]));
+  for (const v of s.priceVersions.slice(1))
+    entries.push(audit(null, "price_list.synced", "price_list", `v${v.version}`, `Yesim price list version ${v.version}: ${v.changes.filter((c) => c.newCost > c.oldCost).length} up, ${v.changes.filter((c) => c.newCost < c.oldCost).length} down`, null, v.syncedAt));
+  entries.push(
+    audit("u-r1", "assistant.disabled", "user", "u-ruwan", "Assistant Ruwan Dissanayake disabled", "r1", at(-15, 11, 5), [{ field: "Status", before: "Active", after: "Disabled" }]),
+    audit("u-r1", "esim.credentials_viewed", "esim", v.id, "PIN and PUK shown", "r1", at(-2, 14, 12)),
+    audit("u-admin", "reseller.status_changed", "reseller", "r6", "Reseller suspended", "r6", at(-30, 16, 40), [{ field: "Status", before: "Active", after: "Suspended" }]),
+    audit("u-admin", "user.created", "user", "u-finance", "Staff user Dilini Fernando created (Finance)", null, s.users.find((u) => u.id === "u-finance")!.createdAt),
   );
+  s.audit.push(...entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+
+  // set-up dates for authenticator apps: a few days after each account was created
+  for (const u of s.users) if (u.mfaEnrolled) u.mfaEnrolledAt = new Date(Date.parse(u.createdAt) + 3 * 86400000).toISOString();
 
   s.seq = seq;
   return s;

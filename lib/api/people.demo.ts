@@ -94,6 +94,10 @@ export const demoPeople = {
         status: "active",
         locked: false,
         mfaEnrolled: false,
+        mfaEnrolledAt: null,
+        recoveryCodesLeft: 0,
+        passkeys: [],
+        lockedUntil: null,
         mustChangePassword: true,
         lastSignInAt: null,
         createdAt: nowIso(),
@@ -125,7 +129,7 @@ export const demoPeople = {
       const r = c.s.resellers.find((x) => x.id === id);
       if (!r) throw new ApiError(404, "NOT_FOUND");
       if (input.markupPercent < 0 || input.markupPercent > 500) throw new ApiError(400, "INVALID_MARKUP", "Use a markup between 0% and 500%.");
-      audit(c, "reseller.markup_changed", "reseller", id, `Markup changed from ${r.markupPercent}% to ${input.markupPercent}%${input.reason ? `: ${input.reason}` : ""}`, id);
+      audit(c, "reseller.markup_changed", "reseller", id, `Markup changed from ${r.markupPercent}% to ${input.markupPercent}%${input.reason ? `: ${input.reason}` : ""}`, id, [{ field: "Markup", before: `${r.markupPercent}%`, after: `${input.markupPercent}%` }]);
       c.s.markupHistory.push({
         id: `mh${++c.s.seq}`,
         resellerId: id,
@@ -248,6 +252,10 @@ export const demoPeople = {
         status: "active",
         locked: false,
         mfaEnrolled: false,
+        mfaEnrolledAt: null,
+        recoveryCodesLeft: 0,
+        passkeys: [],
+        lockedUntil: null,
         mustChangePassword: true,
         lastSignInAt: null,
         createdAt: nowIso(),

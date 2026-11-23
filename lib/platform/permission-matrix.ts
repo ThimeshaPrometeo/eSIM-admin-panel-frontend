@@ -165,3 +165,71 @@ export const RESELLER_ENVELOPE: Grants = {
   topup_requests: "manage",
   invoices: "view",
 };
+
+/**
+ * Staff roles (spec 8.25): the admin navigation sections. The staff role
+ * envelope (spec 5.3) limits what a role can grant; rows outside it are
+ * disabled in the matrix.
+ */
+export const STAFF_MATRIX: MatrixSection[] = [
+  { id: "overview", label: "Overview", rows: [{ module: "dashboard", label: "Dashboard", kind: "view" }] },
+  {
+    id: "esims",
+    label: "eSIM management",
+    rows: [
+      { module: "esims", label: "All eSIMs", kind: "both" },
+      { module: "sell_esim", label: "Sell eSIM", kind: "action" },
+      { module: "orders", label: "Orders", kind: "both" },
+      { module: "usage", label: "Usage", kind: "view" },
+      { module: "inventory", label: "Inventory", kind: "both" },
+      { module: "alerts", label: "Alerts and rules", kind: "both" },
+    ],
+  },
+  {
+    id: "products",
+    label: "Product management",
+    rows: [
+      { module: "plans", label: "Plans", kind: "both" },
+      { module: "coverage", label: "Coverage", kind: "view" },
+      { module: "price_lists", label: "Price list", kind: "both" },
+      { module: "discounts", label: "Discounts", kind: "both" },
+    ],
+  },
+  {
+    id: "resellers",
+    label: "Reseller management",
+    rows: [
+      { module: "resellers", label: "Resellers", kind: "both" },
+      { module: "customers", label: "Customers", kind: "both" },
+      { module: "assistants", label: "Assistants", kind: "view" },
+    ],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    rows: [
+      { module: "wallets", label: "Wallets", kind: "both" },
+      { module: "transactions", label: "Transactions", kind: "view" },
+      { module: "topup_requests", label: "Top-up requests", kind: "both", manageLabel: "Approve" },
+      { module: "invoices", label: "Invoices", kind: "both" },
+      { module: "profit_reports", label: "Profit and costs", kind: "view" },
+    ],
+  },
+  {
+    id: "users",
+    label: "User management",
+    rows: [
+      { module: "users", label: "Users", kind: "both" },
+      { module: "staff_roles", label: "Staff roles", kind: "view" },
+    ],
+  },
+  {
+    id: "system",
+    label: "System",
+    rows: [
+      { module: "settings", label: "Settings", kind: "view" },
+      { module: "yesim_connection", label: "Yesim connection", kind: "view" },
+      { module: "audit_log", label: "Audit log", kind: "view" },
+    ],
+  },
+];

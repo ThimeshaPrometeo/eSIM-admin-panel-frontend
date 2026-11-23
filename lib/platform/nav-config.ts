@@ -96,8 +96,8 @@ export const TENANT_NAV: NavSection[] = [
     short: "Users",
     icon: Users,
     tabs: [
-      tab("users", "Users", "/esim/users", ["users"], false),
-      tab("staff-roles", "Staff roles", "/esim/staff-roles", ["staff_roles"], false),
+      tab("users", "Users", "/esim/users", ["users"], true),
+      tab("staff-roles", "Staff roles", "/esim/staff-roles", ["staff_roles"], true),
     ],
   },
   {
@@ -108,7 +108,7 @@ export const TENANT_NAV: NavSection[] = [
     tabs: [
       tab("settings", "Settings", "/esim/settings", ["settings"], true),
       tab("yesim", "Yesim connection", "/esim/yesim", ["yesim_connection"], true),
-      tab("audit-log", "Audit log", "/esim/audit-log", ["audit_log"], false),
+      tab("audit-log", "Audit log", "/esim/audit-log", ["audit_log"], true),
     ],
   },
 ];
@@ -159,9 +159,9 @@ export const RESELLER_NAV: NavSection[] = [
     short: "Settings",
     icon: UserCog,
     tabs: [
-      tab("profile", "Profile", "/profile", [], false),
-      tab("security", "Security", "/profile/security", [], false),
-      tab("notifications", "Notifications", "/notifications", [], false),
+      tab("profile", "Profile", "/profile", [], true),
+      tab("security", "Security", "/profile/security", [], true),
+      tab("notifications", "Notifications", "/notifications", [], true),
     ],
   },
 ];

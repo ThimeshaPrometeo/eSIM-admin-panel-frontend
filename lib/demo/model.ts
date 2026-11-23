@@ -7,7 +7,7 @@ import type { Grants } from "@/lib/platform/permission-matrix";
 import type { EsimStatus, HoldStatus, InstallStatus, OrderStatus, SuspendedBy, TopupStatus } from "@/lib/platform/status";
 import type { AlertType, LedgerType, Role } from "@/lib/platform/types";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export type DUser = {
   id: string;
@@ -21,11 +21,20 @@ export type DUser = {
   grants: Grants;
   status: "active" | "disabled";
   locked: boolean;
+  /** Authenticator app (TOTP) set up. */
   mfaEnrolled: boolean;
+  mfaEnrolledAt: string | null;
+  /** Unused recovery codes (the codes themselves are shown once and not kept). */
+  recoveryCodesLeft: number;
+  passkeys: DPasskey[];
   mustChangePassword: boolean;
+  /** Locked after 10 failed sign-ins, for 15 minutes or until an admin unlocks. */
+  lockedUntil: string | null;
   lastSignInAt: string | null;
   createdAt: string;
 };
+
+export type DPasskey = { id: string; name: string; createdAt: string; lastUsedAt: string | null };
 
 export type DStaffRole = { id: string; name: string; grants: Grants };
 
@@ -222,6 +231,9 @@ export type DAudit = {
   summary: string;
   resellerId: string | null;
   createdAt: string;
+  ip?: string | null;
+  /** Before/after for changes (field labels in plain words). */
+  changes?: { field: string; before: string; after: string }[] | null;
 };
 
 /** Daily usage per package: MB per day, index 0 = `start`. */
@@ -300,4 +312,8 @@ export type DState = {
   stockDeliveries: DStockDelivery[];
   /** Manual "Sync now" runs of supplier jobs (job id → ISO time); scheduled runs are derived from the clock. */
   jobRuns: Record<string, string>;
+  /** An authenticator set-up in progress (secret not yet confirmed). */
+  mfaSetup: { userId: string; secret: string } | null;
+  /** Password reset links sent (demo: shown on screen instead of emailed). */
+  resetTokens: { token: string; userId: string; expiresAt: string }[];
 };

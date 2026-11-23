@@ -28,6 +28,8 @@ type PlatformValue = {
   unread: number;
   wallet: WalletSummary | null;
   refresh: () => void;
+  /** Reads the signed-in user again (after profile or 2FA changes; signed out if the session ended). */
+  reloadMe: () => Promise<Me | null>;
   signIn: (username: string, password: string) => Promise<LoginResult>;
   verifyMfa: (code: string, method: "totp" | "recovery") => Promise<Me>;
   signInWithPasskey: () => Promise<Me>;
@@ -92,6 +94,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       unread: signedIn ? extras.unread : 0,
       wallet: signedIn ? extras.wallet : null,
       refresh,
+      reloadMe: loadMe,
       signIn: async (username, password) => {
         const r = await authApi.login({ username, password });
         if (!r.mfaRequired) setAuth({ status: "signed_in", me: r.me });

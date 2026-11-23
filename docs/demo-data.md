@@ -120,7 +120,7 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Alerts | Every type, built from the data: 80% on a plan really at 80–99%; 100% on the eSIM the rule suspended (its plan used all its data); low wallet for each active reseller below €50 available; outstanding amount (Atlas); order being verified; late report (Blue Horizon, 3 days ago); house wallet low (the last time the ledger went below €500, resolved by the deposit that lifted it); low stock (the day before delivery STOCK-2026-04, 17 free); daily sale limit and unpriced network (resolved); price list v14 (acknowledged) |
 | Alert rules | 80% notify, 100% auto-suspend (admin) |
 | Notifications | ~15 per demo user, some unread |
-| Audit log | ~200 entries incl. markup change, PIN/PUK reveals, PDF downloads, assistant disable |
+| Audit log | Built from the data: every user's last sign-in plus daily ones for our team, the Ishara lock-out, every sale and added plan, top-up decisions, markup changes and discounts with before/after, price list versions, assistant disabled, reseller suspended, PIN/PUK reveal; IPs from the documentation ranges (203.0.113.x our team, 198.51.100.x resellers) |
 | Inventory | Free = 23 today; going back, free = 23 + new eSIMs sold since − deliveries since. Two deliveries (STOCK-2026-03, STOCK-2026-04) sized so stock went below the warning (20) only once, the day the low-stock alert reports |
 | Documents | Monthly statements per reseller for 3 months, top-up receipts, direct-sale invoices; sequential numbers per type and year (e.g. `ST-2026-0007`) |
 | Yesim connection | Status OK, reseller B2B_ENIGMA, sponsor SP05, network profile SP05_YESEN01, writes shown as disabled (read only), daily sale limit 50 (12 used today), total cap 500 (183 used); jobs derived from the clock (usage meter every 15 min, funding queue 5 min, order reconcile 10 min, nightly re-pricing 02:00, catalogue 03:00, price list every 6 h); "Sync now" records a run; latest notifications from recent eSIM activity; the balance check uses the same figures as Profit → Reconciliation |
@@ -134,6 +134,15 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Usage lines | Per plan, day and network: about a third of days split 20–70% onto a second network in the same country, so a day can have two rates |
 | Supplier account | Deposits €2,500 / €2,000 / €2,000 / €1,500; the balance Yesim reports is €3.82 below what our records imply (tolerance €5) |
 | Statements | Last three full months per reseller; opening + top-ups − usage = closing, to the cent |
+
+### 5.2 Accounts
+
+| Account | State |
+|---|---|
+| Nadeesha (admin) | Authenticator app, 8 recovery codes left, one passkey (MacBook Touch ID) |
+| Dilini (staff, Finance) | New: forced password change, then the 2FA set-up prompt |
+| Ishara (assistant) | Locked after 10 failed sign-ins (unlock in Users, or wait 15 minutes, or reset the password) |
+| Ruwan (assistant) | Disabled by Lanka Roam Travels 15 days ago |
 
 ## 6. Actions that change the store (spec §4.1)
 
