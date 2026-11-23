@@ -1,0 +1,874 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Desktop sign-in fits the viewport: `fit` locks it to one screen, `short`,
+   `tiny` and `mini` tighten it on shorter desktop screens. */
+@custom-variant fit (@media (min-width: 1024px) and (min-height: 640px));
+@custom-variant short (@media (min-width: 1024px) and (max-height: 1060px));
+@custom-variant tiny (@media (min-width: 1024px) and (max-height: 880px));
+@custom-variant mini (@media (min-width: 1024px) and (max-height: 720px));
+
+/*
+ * Design tokens (spec section 7). Dark is the primary design; light is the
+ * secondary theme with the same accents.
+ *
+ * Themes are scoped by the data-theme attribute, on <html> or on any element,
+ * so a light panel can sit inside a dark page (the design-system page shows
+ * both side by side). Components use tokens only, never hex values, and never
+ * the `dark:` variant: the nearest data-theme decides.
+ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #050a14; /* Midnight Ink */
+  --surface-1: #0a1322;
+  --surface-2: #0f1b2e;
+  --surface-3: #15243b;
+  --glass: rgba(255, 255, 255, 0.04);
+  --glass-strong: rgba(15, 27, 46, 0.72); /* popovers, dialogs, sticky headers */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --highlight: rgba(255, 255, 255, 0.12);
+
+  --text: #eaf2ff;
+  --text-2: #8a9bb5;
+  --text-3: #5b6b84;
+
+  --primary: #0080ff; /* Azure: action, links, focus, active nav, main series */
+  --primary-solid: #0070f0; /* filled buttons: keeps white labels at WCAG AA */
+  --primary-glow: rgba(0, 128, 255, 0.35);
+  --accent: #00e5a0; /* Bioluminescent Emerald: alive, healthy, positive */
+  --accent-glow: rgba(0, 229, 160, 0.3);
+  --warning: #ffb547;
+  --danger: #ff4d6a;
+  --neutral: #64748b;
+  --on-solid: #ffffff;
+
+  --shadow-card: 0 0 0 0 transparent; /* dark: depth from light, not shadows */
+  --shadow-pop: 0 24px 64px -24px rgba(0, 0, 0, 0.7);
+  --ambient-azure: rgba(0, 128, 255, 0.16);
+  --ambient-emerald: rgba(0, 229, 160, 0.1);
+  --ambient-ink: rgba(36, 64, 160, 0.1);
+  --grid-line: rgba(255, 255, 255, 0.05);
+  --scrim: rgba(2, 5, 10, 0.55);
+
+  /* Buttons (Phase 1 review) */
+  --btn-primary-top: #1a8fff;
+  --btn-primary-bottom: #0070e6;
+  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 8px 22px -12px rgba(0, 128, 255, 0.55);
+  --btn-glow: 0 0 24px rgba(26, 143, 255, 0.38);
+  --btn-danger-glow: 0 0 24px rgba(255, 77, 106, 0.32);
+  --btn-secondary-bg: rgba(255, 255, 255, 0.06);
+  --btn-secondary-bg-hover: rgba(255, 255, 255, 0.08);
+  --btn-secondary-border: rgba(255, 255, 255, 0.1);
+  --btn-secondary-border-hover: rgba(255, 255, 255, 0.18);
+  --btn-secondary-inner: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --btn-secondary-inner-hover: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 16px rgba(255, 255, 255, 0.04);
+  --btn-ghost-hover: rgba(255, 255, 255, 0.05);
+  --btn-cursor-light: rgba(255, 255, 255, 0.3);
+
+  /* Sign-in hero backdrop */
+  --hero-base: #050a14;
+  --hero-light-a: rgba(0, 128, 255, 0.22);
+  --hero-light-b: rgba(0, 229, 160, 0.08);
+  --hero-vignette: rgba(0, 0, 0, 0.55);
+  --hero-grain-opacity: 0.03;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f5f8fc;
+  --surface-1: #ffffff;
+  --surface-2: #f0f4fa;
+  --surface-3: #e6edf7;
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --border: rgba(5, 10, 20, 0.08);
+  --border-strong: rgba(5, 10, 20, 0.14);
+  --highlight: rgba(255, 255, 255, 0.9);
+
+  --text: #050a14;
+  --text-2: #4a5a72;
+  --text-3: #7a8aa0;
+
+  --primary: #0066e0;
+  --primary-solid: #0059c7;
+  --primary-glow: rgba(0, 102, 224, 0.18);
+  --accent: #00a877;
+  --accent-glow: rgba(0, 168, 119, 0.16);
+  --warning: #b7791f;
+  --danger: #d92d4a;
+  --neutral: #64748b;
+  --on-solid: #ffffff;
+
+  --shadow-card: 0 1px 2px rgba(15, 35, 70, 0.04), 0 12px 32px -16px rgba(15, 35, 70, 0.12);
+  --shadow-pop: 0 24px 64px -24px rgba(15, 35, 70, 0.25);
+  --ambient-azure: rgba(0, 102, 224, 0.1);
+  --ambient-emerald: rgba(0, 168, 119, 0.08);
+  --ambient-ink: rgba(80, 120, 220, 0.06);
+  --grid-line: rgba(5, 10, 20, 0.06);
+  --scrim: rgba(230, 237, 247, 0.6);
+
+  --btn-primary-top: #1a8fff;
+  --btn-primary-bottom: #0070e6;
+  --btn-primary-shadow: 0 1px 2px rgba(20, 60, 120, 0.1), 0 6px 16px -8px rgba(0, 102, 224, 0.32);
+  --btn-glow: 0 0 24px rgba(26, 143, 255, 0.22);
+  --btn-danger-glow: 0 0 24px rgba(217, 45, 74, 0.2);
+  --btn-secondary-bg: rgba(255, 255, 255, 0.7);
+  --btn-secondary-bg-hover: rgba(255, 255, 255, 0.85);
+  --btn-secondary-border: rgba(5, 10, 20, 0.1);
+  --btn-secondary-border-hover: rgba(5, 10, 20, 0.18);
+  --btn-secondary-inner: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(20, 60, 120, 0.05);
+  --btn-secondary-inner-hover: inset 0 1px 0 rgba(255, 255, 255, 1), 0 2px 8px -2px rgba(20, 60, 120, 0.1);
+  --btn-ghost-hover: rgba(5, 10, 20, 0.04);
+  --btn-cursor-light: rgba(255, 255, 255, 0.35);
+
+  /* porcelain: a cool gradient, never lavender */
+  --hero-base: #f4f7fb;
+  --hero-light-a: rgba(0, 128, 255, 0.12);
+  --hero-light-b: rgba(0, 168, 119, 0.06);
+  --hero-vignette: rgba(170, 186, 200, 0.14);
+  --hero-grain-opacity: 0.025;
+}
+
+/*
+ * Sign-in palette ("mission control"), dark first with a light variant.
+ * Defined on :root so the globe can resolve them too; used only by .signin.
+ * The signature gradient (blue → teal) is used sparingly: the headline accent,
+ * the main button and the globe's edge glow.
+ */
+:root {
+  --si-bg: oklch(0.13 0.03 260);
+  --si-bg-raised: oklch(0.17 0.035 258);
+  --si-card: oklch(0.18 0.03 260);
+  --si-fg: oklch(0.96 0.01 255);
+  --si-fg-muted: oklch(0.96 0.01 255 / 0.65);
+  --si-fg-subtle: oklch(0.96 0.01 255 / 0.55);
+  --si-blue: oklch(0.65 0.2 250);
+  --si-teal: oklch(0.8 0.15 170);
+  --si-live: oklch(0.8 0.18 150);
+  --si-danger: oklch(0.72 0.17 20);
+  --si-gradient: linear-gradient(100deg, var(--si-blue), var(--si-teal));
+  --si-border-hi: oklch(1 0 0 / 0.12);
+  --si-border-lo: oklch(1 0 0 / 0.03);
+  --si-hairline: oklch(1 0 0 / 0.08);
+  --si-hairline-strong: oklch(1 0 0 / 0.16);
+  --si-highlight: oklch(1 0 0 / 0.09);
+  --si-input: oklch(0.1 0.025 260 / 0.75);
+  --si-ring: oklch(0.65 0.2 250 / 0.4);
+  --si-glow-blue: oklch(0.65 0.2 250 / 0.3);
+  --si-glow-teal: oklch(0.8 0.15 170 / 0.12);
+  --si-grid-dot: oklch(1 0 0 / 0.07);
+  --si-shadow: 0 30px 80px -20px oklch(0.65 0.2 250 / 0.25);
+  --si-on-gradient: oklch(0.13 0.03 260);
+  --si-violet: oklch(0.62 0.18 295);
+  --si-aurora-teal: oklch(0.8 0.15 170 / 0.1);
+  --si-aurora-violet: oklch(0.62 0.18 295 / 0.09);
+  /* gradient for text (headline); the button keeps --si-gradient */
+  --si-gradient-ink: var(--si-gradient);
+  --si-link: var(--si-teal);
+  --si-live-text: var(--si-live);
+  --si-tint: oklch(1 0 0 / 0.03);
+  --si-tint-strong: oklch(1 0 0 / 0.06);
+  --si-inset: inset 0 1px 2px oklch(0 0 0 / 0.35);
+  --si-vignette: oklch(0 0 0 / 0.45);
+  --si-chip-shadow: oklch(0 0 0 / 0.6);
+  --si-shimmer-ink: oklch(1 0 0 / 0.65);
+  /* land dots on the sign-in globe */
+  --si-globe-dot: var(--si-teal);
+}
+/* Light: same layout and gradient; darker inks so text keeps AA contrast. */
+[data-theme="light"] {
+  --si-bg: oklch(0.975 0.008 250);
+  --si-bg-raised: oklch(0.94 0.018 250);
+  --si-card: oklch(1 0 0);
+  --si-fg: oklch(0.22 0.035 260);
+  --si-fg-muted: oklch(0.22 0.035 260 / 0.74);
+  --si-fg-subtle: oklch(0.22 0.035 260 / 0.62);
+  --si-blue: oklch(0.56 0.2 255);
+  --si-teal: oklch(0.62 0.12 175);
+  --si-live: oklch(0.66 0.17 150);
+  --si-danger: oklch(0.53 0.2 25);
+  --si-gradient: linear-gradient(100deg, oklch(0.65 0.2 250), oklch(0.8 0.15 170));
+  --si-gradient-ink: linear-gradient(100deg, oklch(0.52 0.21 258), oklch(0.56 0.12 180));
+  --si-link: oklch(0.47 0.1 185);
+  --si-live-text: oklch(0.47 0.13 152);
+  --si-border-hi: oklch(0.3 0.04 260 / 0.12);
+  --si-border-lo: oklch(0.3 0.04 260 / 0.06);
+  --si-hairline: oklch(0.3 0.04 260 / 0.12);
+  --si-hairline-strong: oklch(0.3 0.04 260 / 0.2);
+  --si-highlight: oklch(1 0 0 / 0.9);
+  --si-input: oklch(0.975 0.006 250);
+  --si-ring: oklch(0.56 0.2 255 / 0.3);
+  --si-glow-blue: oklch(0.65 0.2 250 / 0.1);
+  --si-glow-teal: oklch(0.8 0.15 170 / 0.1);
+  --si-grid-dot: oklch(0.3 0.04 260 / 0.1);
+  --si-shadow: 0 30px 80px -24px oklch(0.45 0.12 255 / 0.22);
+  --si-on-gradient: oklch(0.13 0.03 260);
+  --si-aurora-teal: oklch(0.8 0.15 170 / 0.14);
+  --si-aurora-violet: oklch(0.62 0.18 295 / 0.08);
+  --si-tint: oklch(0.3 0.04 260 / 0.03);
+  --si-tint-strong: oklch(0.3 0.04 260 / 0.06);
+  --si-inset: inset 0 1px 2px oklch(0.3 0.04 260 / 0.08);
+  --si-vignette: oklch(0.6 0.05 255 / 0.12);
+  --si-chip-shadow: oklch(0.4 0.1 255 / 0.25);
+  --si-shimmer-ink: oklch(1 0 0 / 0.8);
+  --si-globe-dot: var(--accent);
+}
+
+/* Shimmer position for the gradient headline words (animatable custom property). */
+@property --si-shimmer {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: -0.5;
+}
+
+:root {
+  /* Motion (spec 7.6): weighted, no overshoot. */
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-hover: 180ms;
+  --dur-reveal: 600ms;
+
+  --gradient-signature: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-highlight: var(--highlight);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-fg-3: var(--text-3);
+  --color-primary: var(--primary);
+  --color-primary-solid: var(--primary-solid);
+  --color-primary-glow: var(--primary-glow);
+  --color-accent: var(--accent);
+  --color-accent-glow: var(--accent-glow);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-neutral: var(--neutral);
+  --color-on-solid: var(--on-solid);
+
+  /* Radii by hierarchy (spec 7.4). */
+  --radius-shell: 24px;
+  --radius-card: 16px;
+  --radius-control: 12px;
+
+  /* Type scale (spec 7.3). */
+  --text-display: 40px;
+  --text-display--line-height: 44px;
+  --text-display--letter-spacing: -0.03em;
+  --text-title: 28px;
+  --text-title--line-height: 34px;
+  --text-title--letter-spacing: -0.02em;
+  --text-section: 18px;
+  --text-section--line-height: 26px;
+  --text-section--letter-spacing: -0.01em;
+  --text-body: 14px;
+  --text-body--line-height: 22px;
+  --text-small: 12px;
+  --text-small--line-height: 18px;
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --animate-shimmer: shimmer 2.4s var(--ease-in-out) infinite;
+  --animate-rise: rise 600ms var(--ease-out-expo) both;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 22px;
+    font-feature-settings: "ss01", "cv11";
+  }
+  [data-theme] {
+    color: var(--text);
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--primary-glow);
+  }
+}
+
+@layer components {
+  /* Glass card (spec 7.4): glass fill, blur, thin border, 1px top highlight. */
+  .glass-card {
+    position: relative;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow:
+      inset 0 1px 0 0 var(--highlight),
+      var(--shadow-card);
+  }
+  /* Shell rails (primary rail, secondary column, mobile bars): quiet glass. */
+  .glass-rail {
+    background: color-mix(in oklab, var(--surface-1) 62%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: inset -1px 0 0 0 var(--highlight);
+  }
+  .glass-bar {
+    background: color-mix(in oklab, var(--bg) 72%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+  .glass-card-interactive {
+    transition:
+      border-color var(--dur-hover) var(--ease-out-expo),
+      box-shadow var(--dur-hover) var(--ease-out-expo);
+  }
+  .glass-card-interactive:hover,
+  .glass-card-interactive:focus-within {
+    border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+    box-shadow:
+      inset 0 1px 0 0 var(--highlight),
+      0 0 0 1px color-mix(in oklab, var(--primary) 12%, transparent),
+      0 8px 40px -12px var(--primary-glow),
+      var(--shadow-card);
+  }
+  /* Opaque-ish glass for floating layers (popovers, dialogs, sticky headers). */
+  .glass-pop {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid var(--border-strong);
+    box-shadow:
+      inset 0 1px 0 0 var(--highlight),
+      var(--shadow-pop);
+  }
+  /* Cursor-following light (useCursorGlow sets --glow-x/--glow-y). */
+  .cursor-glow {
+    --glow-x: 50%;
+    --glow-y: 50%;
+    --glow-opacity: 0;
+    isolation: isolate;
+  }
+  .cursor-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      120px circle at var(--glow-x) var(--glow-y),
+      rgba(255, 255, 255, 0.28),
+      transparent 70%
+    );
+    opacity: var(--glow-opacity);
+    transition: opacity 240ms var(--ease-out-expo);
+    mix-blend-mode: soft-light;
+  }
+  /*
+   * Buttons (Phase 1 review). Every variant: 12px radius, Geist 500, press to
+   * 0.98 in 120 ms, a 2px Azure focus ring with a soft 4px glow. Shadows are
+   * composed from variables so hover glow, ring and depth layer cleanly.
+   */
+  .btn {
+    --btn-ring: 0 0 #0000;
+    --btn-hover: 0 0 #0000;
+    --btn-depth: 0 0 #0000;
+    --btn-inner: 0 0 #0000;
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    user-select: none;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    outline: none;
+    box-shadow: var(--btn-ring), var(--btn-hover), var(--btn-inner), var(--btn-depth);
+    transition:
+      box-shadow 200ms var(--ease-out-expo),
+      background-color 200ms var(--ease-out-expo),
+      border-color 200ms var(--ease-out-expo),
+      color 200ms var(--ease-out-expo),
+      transform 120ms var(--ease-out-expo);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .btn:focus-visible {
+    --btn-ring: 0 0 0 2px var(--primary), 0 0 0 6px color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  .btn:disabled {
+    pointer-events: none;
+    opacity: 0.45;
+  }
+  .btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    pointer-events: none;
+  }
+  .btn-sm { height: 36px; padding: 0 14px; font-size: 14px; }
+  .btn-md { height: 44px; padding: 0 18px; font-size: 15px; }
+  .btn-lg { height: 52px; padding: 0 24px; font-size: 16px; }
+  .btn-icon { height: 44px; width: 44px; padding: 0; }
+  .btn-icon-sm { height: 36px; width: 36px; padding: 0; }
+
+  /* the light that follows the cursor inside the button */
+  .btn-light::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(90px circle at var(--glow-x, 50%) var(--glow-y, 50%), var(--btn-cursor-light), transparent 70%);
+    opacity: var(--glow-opacity, 0);
+    transition: opacity 200ms var(--ease-out-expo);
+    mix-blend-mode: soft-light;
+  }
+
+  .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, var(--btn-primary-top), var(--btn-primary-bottom));
+    border-color: rgba(255, 255, 255, 0.12);
+    --btn-inner: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    --btn-depth: var(--btn-primary-shadow);
+  }
+  .btn-primary:hover { --btn-hover: var(--btn-glow); }
+
+  .btn-destructive {
+    color: #fff;
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--danger) 94%, black),
+      color-mix(in oklab, var(--danger) 72%, black)
+    );
+    border-color: rgba(255, 255, 255, 0.12);
+    --btn-inner: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    --btn-depth: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 22px -12px color-mix(in oklab, var(--danger) 60%, transparent);
+  }
+  .btn-destructive:hover { --btn-hover: var(--btn-danger-glow); }
+
+  .btn-secondary {
+    color: var(--text);
+    background: var(--btn-secondary-bg);
+    border-color: var(--btn-secondary-border);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    --btn-inner: var(--btn-secondary-inner);
+  }
+  .btn-secondary:hover {
+    background: var(--btn-secondary-bg-hover);
+    border-color: var(--btn-secondary-border-hover);
+    --btn-inner: var(--btn-secondary-inner-hover);
+  }
+
+  .btn-outline {
+    color: var(--text);
+    background: transparent;
+    border-color: var(--btn-secondary-border);
+  }
+  .btn-outline:hover {
+    border-color: var(--btn-secondary-border-hover);
+    --btn-inner: var(--btn-secondary-inner-hover);
+  }
+
+  .btn-ghost {
+    color: var(--text-2);
+    background: transparent;
+  }
+  .btn-ghost:hover {
+    color: var(--text);
+    background: var(--btn-ghost-hover);
+  }
+
+  .btn-link {
+    height: auto;
+    padding: 0;
+    color: var(--primary);
+    background: transparent;
+    text-underline-offset: 4px;
+  }
+  .btn-link:hover { text-decoration: underline; }
+  .btn-link:active:not(:disabled) { transform: none; }
+
+  /* optional trailing arrow: slides 2px right on hover */
+  .btn-arrow { transition: transform 200ms var(--ease-out-expo); }
+  .btn:hover .btn-arrow { transform: translateX(2px); }
+
+  .text-gradient {
+    background: var(--gradient-signature);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .skeleton {
+    background: linear-gradient(
+      100deg,
+      var(--surface-2) 30%,
+      color-mix(in oklab, var(--surface-3) 70%, var(--surface-2)) 50%,
+      var(--surface-2) 70%
+    );
+    background-size: 220% 100%;
+    animation: var(--animate-shimmer);
+  }
+}
+
+/* ---------------------------------------------------------------- sign-in -- */
+.signin {
+  background: var(--si-bg);
+  color: var(--si-fg);
+}
+.si-gradient-text {
+  background: var(--si-gradient-ink);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.si-dot-grid {
+  background-image: radial-gradient(var(--si-grid-dot) 1px, transparent 1.2px);
+  background-size: 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 55% 45%, black 25%, transparent 78%);
+  mask-image: radial-gradient(ellipse 70% 65% at 55% 45%, black 25%, transparent 78%);
+}
+/* Glass with a 1px gradient border (12% → 3% white) and a top highlight. */
+.si-glass {
+  position: relative;
+  background: color-mix(in oklch, var(--si-card) 60%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: inset 0 1px 0 var(--si-highlight);
+}
+.si-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, var(--si-border-hi), var(--si-border-lo));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.si-card {
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 var(--si-highlight), var(--si-shadow);
+}
+/* Recessed input with a leading icon; ring + glow on focus in 150 ms. */
+.si-field {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--si-hairline);
+  background: var(--si-input);
+  box-shadow: var(--si-inset);
+  transition: border-color 150ms var(--ease-out-expo), box-shadow 150ms var(--ease-out-expo);
+}
+.si-field:hover { border-color: var(--si-hairline-strong); }
+.si-field:focus-within {
+  border-color: oklch(0.65 0.2 250 / 0.7);
+  box-shadow: var(--si-inset), 0 0 0 2px var(--si-ring), 0 0 24px -4px var(--si-glow-blue);
+}
+.si-field[data-invalid="true"] { border-color: var(--si-danger); }
+@media (min-width: 1024px) and (max-height: 1060px) {
+  .signin .si-field,
+  .signin .si-btn { height: 44px; }
+}
+.si-field input {
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  outline: none;
+  color: var(--si-fg);
+  font-size: 15px;
+}
+.si-field input::placeholder { color: var(--si-fg-subtle); }
+/* Main button: signature gradient, top highlight, a sheen on hover. */
+.si-btn {
+  position: relative;
+  display: inline-flex;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  outline: none;
+  transition: transform 120ms var(--ease-out-expo), box-shadow 200ms var(--ease-out-expo), background-color 200ms, border-color 200ms;
+}
+.si-btn:active:not(:disabled) { transform: scale(0.98); }
+.si-btn:focus-visible { box-shadow: 0 0 0 2px var(--si-bg), 0 0 0 4px var(--si-blue), 0 0 24px -2px var(--si-glow-blue); }
+.si-btn:disabled { cursor: progress; }
+.si-btn-primary {
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--si-on-gradient);
+  background: var(--si-gradient);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.45), 0 12px 32px -14px var(--si-glow-blue);
+}
+.si-btn-primary:hover { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), 0 14px 40px -12px var(--si-glow-blue); }
+.si-btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, oklch(1 0 0 / 0.5) 48%, transparent 66%);
+  transform: translateX(-130%);
+  pointer-events: none;
+}
+.si-btn-primary:hover::after { animation: si-sheen 900ms var(--ease-out-expo); }
+.si-btn-primary .si-arrow { transition: transform 200ms var(--ease-out-expo); }
+.si-btn-primary:hover .si-arrow { transform: translateX(3px); }
+.si-btn-outline {
+  color: var(--si-fg);
+  border: 1px solid var(--si-hairline-strong);
+  background: var(--si-tint);
+}
+.si-btn-outline:hover { border-color: color-mix(in oklch, var(--si-fg) 28%, transparent); background: var(--si-tint-strong); }
+/* Quiet text button (e.g. "Back to sign in"). */
+.si-btn-ghost { color: var(--si-fg-muted); background: transparent; }
+.si-btn-ghost:hover { color: var(--si-fg); background: var(--si-tint-strong); }
+/* Small text links with a 44px hit area. */
+.si-hit { position: relative; }
+.si-hit::after { content: ""; position: absolute; inset: -12px -8px; }
+/* Live dot with a soft pulse. */
+.si-live-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--si-live);
+  box-shadow: 0 0 10px var(--si-live);
+}
+.si-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--si-live);
+  animation: si-pulse 2s var(--ease-out-expo) infinite;
+}
+/* Stats strip items lift 1px on hover. */
+.si-strip-item {
+  border: 1px solid transparent;
+  transition: transform 200ms var(--ease-out-expo), border-color 200ms var(--ease-out-expo), background-color 200ms;
+}
+.si-strip-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--si-hairline-strong);
+  background: var(--si-tint);
+}
+/* Entrance: rise 12px and unblur 8px, staggered by --i (80 ms). */
+.si-enter {
+  animation: si-enter 600ms var(--ease-out-expo) both;
+  animation-delay: calc(var(--i, 0) * 80ms + 80ms);
+}
+.si-globe-enter { animation: si-globe-in 1400ms var(--ease-out-expo) both; animation-delay: 200ms; }
+.si-activity-in { animation: si-enter 700ms var(--ease-out-expo) both; }
+.si-drift { animation: si-drift var(--drift, 9s) var(--ease-in-out) infinite alternate; }
+
+/* Headline: each word slides up from a soft blur, line by line. */
+.si-word {
+  display: inline-block;
+  animation: si-word 700ms var(--ease-out-expo) both;
+  animation-delay: var(--d, 0ms);
+}
+/*
+ * Gradient words share one gradient across the whole line: each word knows
+ * the line width (--line-w) and its own offset (--word-x), set by a small
+ * measurement in the component. A light shimmer passes every 6 seconds.
+ */
+.si-line-gradient {
+  --si-shimmer: -0.5;
+  animation: si-shimmer 6s linear 2.4s infinite;
+}
+.si-line-gradient .si-word {
+  background-image:
+    linear-gradient(105deg, transparent 0%, var(--si-shimmer-ink) 50%, transparent 100%),
+    var(--si-gradient-ink);
+  background-size:
+    calc(var(--line-w, 100%) * 0.32) 100%,
+    var(--line-w, 100%) 100%;
+  background-position:
+    calc(var(--si-shimmer) * var(--line-w, 100%) - var(--word-x, 0px)) 0,
+    calc(-1 * var(--word-x, 0px)) 0;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* Telemetry cards around the globe. */
+.si-tele-in { animation: si-tele-in 650ms var(--ease-out-expo) both; }
+.si-tele-out { animation: si-tele-out 500ms var(--ease-out-expo) both; }
+/* The card's top edge flashes when the signal arrives. */
+.si-card::after {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--si-teal), var(--si-blue), transparent);
+  box-shadow: 0 0 18px 2px var(--si-glow-teal), 0 0 32px 4px var(--si-glow-blue);
+  opacity: 0;
+  pointer-events: none;
+}
+.si-card[data-flash="on"]::after { animation: si-flash 1000ms var(--ease-out-expo); }
+.si-tick { display: inline-block; animation: si-tick 450ms var(--ease-out-expo); }
+.si-aurora { animation: si-aurora 26s var(--ease-in-out) infinite alternate; }
+
+@keyframes si-word {
+  from { opacity: 0; transform: translateY(0.45em); filter: blur(10px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes si-shimmer {
+  0% { --si-shimmer: -0.5; }
+  25% { --si-shimmer: 1.4; }
+  100% { --si-shimmer: 1.4; }
+}
+@keyframes si-tele-in {
+  from { opacity: 0; transform: translateY(8px); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes si-tele-out {
+  from { opacity: 1; transform: none; filter: blur(0); }
+  to { opacity: 0; transform: translateY(-6px); filter: blur(8px); }
+}
+@keyframes si-flash {
+  0% { opacity: 0; transform: scaleX(0.3); }
+  20% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+@keyframes si-tick {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes si-aurora {
+  from { transform: translate3d(-6%, 0, 0) scaleY(1); }
+  to { transform: translate3d(6%, 2%, 0) scaleY(1.15); }
+}
+@keyframes si-enter {
+  from { opacity: 0; transform: translateY(12px); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes si-globe-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes si-sheen {
+  from { transform: translateX(-130%); }
+  to { transform: translateX(130%); }
+}
+@keyframes si-pulse {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(2.6); opacity: 0; }
+}
+@keyframes si-drift {
+  from { transform: translateY(-5px); }
+  to { transform: translateY(5px); }
+}
+
+/* Film grain for the sign-in backdrop: an inline SVG noise tile (no request). */
+.film-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 180px 180px;
+  opacity: var(--hero-grain-opacity);
+  mix-blend-mode: overlay;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6vw, 4vh, 0) scale(1.08);
+  }
+}
+@keyframes drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-5vw, -6vh, 0) scale(0.95);
+  }
+}
+@keyframes drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-4vw, 5vh, 0);
+  }
+}
+
+/* Spec 7.6: reduced motion = instant state changes, no ambient drift. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
