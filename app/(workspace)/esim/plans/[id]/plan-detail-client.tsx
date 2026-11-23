@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage } from "@/components/platform/fit-page";
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, Pencil } from "lucide-react";
@@ -48,7 +49,7 @@ export function PlanDetailClient({ id }: { id: string }) {
   const rows = (plan?.networks ?? []).filter((n) => !q || n.country.toLowerCase().includes(q.toLowerCase()) || n.operator.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <Button asChild variant="ghost" size="sm" className="-ml-2 self-start">
         <Link href="/esim/plans">
           <ArrowLeft strokeWidth={1.5} />
@@ -97,6 +98,6 @@ export function PlanDetailClient({ id }: { id: string }) {
         toolbar={<SearchInput value={q} onChange={setQ} placeholder="Search country or network" />}
       />
       {plan ? <PlanFormDialog open={editing} onOpenChange={setEditing} plan={plan} /> : null}
-    </div>
+    </FitPage>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage, FitScroll } from "@/components/platform/fit-page";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -67,7 +68,7 @@ export function ResellerDetailClient({ id }: { id: string }) {
 
   const manage = rules.canManageResellers(me);
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <Button asChild variant="ghost" size="sm" className="-ml-2 self-start">
         <Link href="/esim/resellers">
           <ArrowLeft strokeWidth={1.5} />
@@ -150,6 +151,7 @@ export function ResellerDetailClient({ id }: { id: string }) {
         </GlassCard>
       )}
 
+<FitScroll>
       <Tabs value={tab} onValueChange={setTab}>
         <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
           <TabsList>
@@ -203,7 +205,8 @@ export function ResellerDetailClient({ id }: { id: string }) {
           />
         </>
       ) : null}
-    </div>
+      </FitScroll>
+    </FitPage>
   );
 }
 

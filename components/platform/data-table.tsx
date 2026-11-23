@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./primitives";
+import { useFit } from "./fit-page";
 
 export type Column<T> = {
   id: string;
@@ -60,6 +61,8 @@ export function DataTable<T>({
   const [sort, setSort] = useState<{ id: string; desc: boolean } | null>(defaultSort ? { id: defaultSort.id, desc: !!defaultSort.desc } : null);
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(columns.filter((c) => c.defaultHidden).map((c) => c.id)));
   const [page, setPage] = useState(1);
+  const fit = useFit();
+  if (fit) pageSize = Math.max(pageSize, 50);
   const visible = columns.filter((c) => !hidden.has(c.id));
 
   const sorted = useMemo(() => {
@@ -84,7 +87,7 @@ export function DataTable<T>({
   const hideable = columns.filter((c) => c.hideable !== false);
 
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <div className={cn("flex flex-col gap-4", fit && "min-h-0 flex-1", className)}>
       {toolbar || actions || hideable.length > 2 ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2" onChange={() => setPage(1)}>
@@ -128,7 +131,7 @@ export function DataTable<T>({
         </div>
       ) : null}
 
-      <div className="glass-card overflow-hidden">
+      <div className={cn("glass-card overflow-hidden", fit && "flex min-h-0 flex-1 flex-col")}>
         {error ? (
           <EmptyState illustration="signal" title="This list didn't load" description={errorMessage(error)} />
         ) : loading && !rows ? (
@@ -140,7 +143,7 @@ export function DataTable<T>({
         ) : sorted.length === 0 ? (
           <EmptyState illustration={empty?.illustration ?? "sim"} title={empty?.title ?? "Nothing here yet"} description={empty?.description ?? "Try another search or filter."} action={empty?.action} />
         ) : (
-          <Table>
+          <Table containerClassName={fit ? "min-h-0 flex-1" : undefined}>
             {caption ? <caption className="sr-only">{caption}</caption> : null}
             <TableHeader>
               <tr>

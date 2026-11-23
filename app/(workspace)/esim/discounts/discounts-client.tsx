@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage } from "@/components/platform/fit-page";
 import Link from "next/link";
 import { useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -67,7 +68,7 @@ export function DiscountsClient() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <PageHeader
         title="Discounts"
         description="A percentage off a reseller's price per MB, for all plans or one plan. The plan-specific discount wins."
@@ -105,6 +106,6 @@ export function DiscountsClient() {
           if (r.ok) setRemoving(null);
         }}
       />
-    </div>
+    </FitPage>
   );
 }

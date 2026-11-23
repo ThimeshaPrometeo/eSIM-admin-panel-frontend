@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage, FitScroll } from "@/components/platform/fit-page";
 import { useId, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ export function MyPlansClient() {
   const base = (planId: string) => catalogue.data?.find((c) => c.planId === planId && !c.resellerPlanId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <PageHeader
         title="My plans"
         description="Name plans your way and note what you charge your customers. You're still billed per MB used at your prices."
@@ -48,6 +49,7 @@ export function MyPlansClient() {
           ) : null
         }
       />
+<FitScroll>
       {plans.loading && !plans.data ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }, (_, i) => (
@@ -129,7 +131,8 @@ export function MyPlansClient() {
           if (r.ok) setRemoving(null);
         }}
       />
-    </div>
+      </FitScroll>
+    </FitPage>
   );
 }
 

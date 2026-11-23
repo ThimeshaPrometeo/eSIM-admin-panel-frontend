@@ -196,6 +196,15 @@ files. If a page needs something the design system doesn't have, add it there fi
 - Loading = skeletons in `--surface-2` with a slow shimmer; no centred spinners. Empty states = small glowing
   line illustration + one action.
 
+### 9.2a One screen on desktop
+
+- **Desktop pages fit the screen (product decision, 2026-11-20/23).** From 1024 × 640 the page itself never
+  scrolls: wrap a page in `<FitPage>` (components/platform/fit-page); its main list (`DataTable`) fills the
+  space and scrolls inside its card with a sticky header; pages with several sections put the part below
+  their header in `<FitScroll>`. Dashboard, Coverage and eSIM detail have their own one-screen layouts
+  (charts grid, list | globe | country, eSIM | tabs). Phones, tablets and short screens scroll as usual.
+- Check with the scroll test in the phase review (document height = window height on every page).
+
 ### 9.3 Motion (`components/platform/motion/`, `lib/design/motion.ts`)
 
 - Easing tokens: `--ease-out-expo` = `cubic-bezier(0.22, 1, 0.36, 1)` for entrances,

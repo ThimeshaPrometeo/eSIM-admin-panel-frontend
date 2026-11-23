@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage } from "@/components/platform/fit-page";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -58,7 +59,7 @@ export function ResellersClient() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <PageHeader
         title="Resellers"
         description="Businesses that sell your eSIMs. They pay per MB at the supplier price plus their markup, less any discount."
@@ -100,6 +101,6 @@ export function ResellersClient() {
           ) : null}
         </DialogContent>
       </Dialog>
-    </div>
+    </FitPage>
   );
 }

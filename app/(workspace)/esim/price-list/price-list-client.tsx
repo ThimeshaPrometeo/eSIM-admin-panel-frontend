@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage } from "@/components/platform/fit-page";
 import { useMemo, useState } from "react";
 import { FileDown, RefreshCw, Sheet } from "lucide-react";
 import { toast } from "sonner";
@@ -135,7 +136,7 @@ export function PriceListClient() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <PageHeader
         title="Price list"
         description={
@@ -190,6 +191,6 @@ export function PriceListClient() {
         }
         empty={{ title: "No networks match", description: "Try another search or filter.", illustration: "globe" }}
       />
-    </div>
+    </FitPage>
   );
 }

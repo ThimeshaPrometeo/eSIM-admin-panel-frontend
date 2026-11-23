@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage } from "@/components/platform/fit-page";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Pencil, Plus } from "lucide-react";
@@ -103,7 +104,7 @@ export function PlansClient() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <PageHeader
         title="Plans"
         description="Plans resellers and your team can sell. Each is a data amount on a zone; usage is billed per MB at the network's price."
@@ -134,6 +135,6 @@ export function PlansClient() {
         empty={{ title: "No plans match", description: "Try another search or status.", action: canEdit ? <Button onClick={() => setEditing(null)}>Create plan</Button> : undefined }}
       />
       <PlanFormDialog open={editing !== undefined} onOpenChange={(o) => !o && setEditing(undefined)} plan={editing ?? null} />
-    </div>
+    </FitPage>
   );
 }

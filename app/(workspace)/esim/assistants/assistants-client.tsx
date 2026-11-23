@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage } from "@/components/platform/fit-page";
 import { useId, useState } from "react";
 import { Plus, ShieldCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,7 +99,7 @@ export function AssistantsClient() {
 
   const envelope = ctx.data?.envelope ?? {};
   return (
-    <div className="flex flex-col gap-6">
+    <FitPage>
       <PageHeader
         title={team ? "Assistants" : "Assistants"}
         description={
@@ -146,7 +147,7 @@ export function AssistantsClient() {
           if (r.ok) setToggling(null);
         }}
       />
-    </div>
+    </FitPage>
   );
 }
 

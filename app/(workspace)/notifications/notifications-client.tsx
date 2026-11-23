@@ -1,5 +1,6 @@
 "use client";
 
+import { FitPage, FitScroll } from "@/components/platform/fit-page";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ export function NotificationsClient() {
   const { run, pending } = useAction();
   const unread = (data ?? []).filter((n) => !n.read).length;
   return (
-    <div className="flex flex-col gap-8">
+    <FitPage>
       <PageHeader
         title="Notifications"
         description={unread ? `${unread} unread` : "You're all caught up."}
@@ -30,6 +31,7 @@ export function NotificationsClient() {
           ) : null
         }
       />
+<FitScroll>
       <GlassCard padded={false}>
         {loading ? (
           <div className="flex flex-col gap-3 p-6">
@@ -70,6 +72,7 @@ export function NotificationsClient() {
           </ul>
         )}
       </GlassCard>
-    </div>
+      </FitScroll>
+    </FitPage>
   );
 }

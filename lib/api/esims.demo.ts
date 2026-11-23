@@ -14,7 +14,7 @@ import { ledgerRow, lowWalletCheck } from "@/lib/demo/billing";
 import { available, esimView, walletOfReseller } from "@/lib/demo/derive";
 import type { DEsim, DOrder, DPackage, DState } from "@/lib/demo/model";
 import { buyerPricePerMb, holdFor, round2, type Buyer } from "@/lib/demo/pricing";
-import { luhn } from "@/lib/demo/rng";
+import { createRng, luhn } from "@/lib/demo/rng";
 import { read, write } from "@/lib/demo/run";
 import { SMDP_ADDRESS } from "@/lib/demo/seed";
 import { assertScope, audit, authorize, notify, nowIso, paginate, requireRole, resellerAudience, tenantAudience, type Caller } from "@/lib/demo/session";
@@ -68,13 +68,10 @@ function newIccid(s: DState) {
 }
 
 function newCode(s: DState) {
+  // a different code per eSIM, from the store's sequence (deterministic, no precision loss)
+  const rng = createRng(s.seq * 7919 + 17);
   const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let n = s.seq * 2654435761;
-  const part = () =>
-    Array.from({ length: 4 }, () => {
-      n = (n * 1103515245 + 12345) % 2147483648;
-      return A[n % A.length];
-    }).join("");
+  const part = () => Array.from({ length: 4 }, () => A[rng.int(0, A.length - 1)]).join("");
   return `${part()}-${part()}-${part()}-${part()}`;
 }
 

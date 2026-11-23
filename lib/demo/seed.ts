@@ -488,7 +488,9 @@ export function createSeed(now: Date = new Date()): DState {
       .filter((x): x is string => !!x)
       .sort()
       .pop();
-    e.lastActivityAt = lastUse ? new Date(`${lastUse}T${String(rng.int(8, 22)).padStart(2, "0")}:${String(rng.int(0, 59)).padStart(2, "0")}:00+05:30`).toISOString() : null;
+    const lastAt = lastUse ? new Date(`${lastUse}T${String(rng.int(8, 22)).padStart(2, "0")}:${String(rng.int(0, 59)).padStart(2, "0")}:00+05:30`) : null;
+    // today's activity can't be later than now
+    e.lastActivityAt = lastAt ? new Date(Math.min(lastAt.getTime(), now.getTime() - rng.int(4, 90) * 60000)).toISOString() : null;
     if (!started.length) e.installStatus = rng.weighted([["not_installed", 6], ["downloaded", 3]] as const) as InstallStatus;
     else e.installStatus = rng.weighted([["installed", 5], ["enabled", 4], ["disabled", 1]] as const) as InstallStatus;
   }
