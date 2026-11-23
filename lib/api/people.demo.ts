@@ -5,15 +5,15 @@
  */
 import { ApiError } from "./errors";
 import { creditWallet, debitWallet } from "@/lib/demo/billing";
-import { nextRatingDay } from "./catalogue.demo";
 import { meFor, resellerView } from "@/lib/demo/derive";
+import { sendInvitation } from "@/lib/demo/invite";
 import type { DReseller, DUser } from "@/lib/demo/model";
 import { read, write } from "@/lib/demo/run";
 import { assertScope, audit, authorize, inScope, requireRole, resellerAudience, notify, nowIso } from "@/lib/demo/session";
 import { formatMoney, money } from "@/lib/platform/money";
 import { effectivePermissions, rules } from "@/lib/platform/permissions";
 import { clampToEnvelope, RESELLER_MATRIX, type Grants } from "@/lib/platform/permission-matrix";
-import type { Assistant, AuditEntry, Customer, DocumentRow, PermissionContext, Reseller } from "@/lib/platform/types";
+import type { Assistant, AuditEntry, Customer, DocumentRow, Invitation, PermissionContext, Reseller } from "@/lib/platform/types";
 
 export type ResellerInput = { companyName: string; contactName: string; email: string; phone: string; username: string; markupPercent: number | null };
 export type ResellerUpdate = { companyName: string; contactName: string; email: string; phone: string };
@@ -28,6 +28,7 @@ function assistantView(s: Parameters<typeof resellerView>[0], u: DUser): Assista
     username: u.username,
     email: u.email,
     status: u.status,
+    invited: u.invitePending,
     grants: u.grants,
     lastSignInAt: u.lastSignInAt,
     createdAt: u.createdAt,
@@ -61,7 +62,7 @@ export const demoPeople = {
       return resellerView(c.s, r, rules.canSeeMarkup(c.me));
     }),
   createReseller: (input: ResellerInput) =>
-    write((): Reseller => {
+    write((): Reseller & { invitation: Invitation } => {
       const c = authorize("resellers", "manage");
       requireRole(c, "admin", "staff");
       const username = input.username.trim().toLowerCase();
@@ -80,9 +81,9 @@ export const demoPeople = {
         createdAt: nowIso(),
       };
       c.s.resellers.push(r);
-      c.s.markupHistory.push({ id: `mh${++c.s.seq}`, resellerId: id, effectiveFrom: c.s.seededOn, markupPercent: r.markupPercent, previousPercent: null, changedAt: nowIso(), changedBy: c.u.id, reason: "Starting markup" });
+      c.s.markupHistory.push({ id: `mh${++c.s.seq}`, resellerId: id, effectiveAt: nowIso(), markupPercent: r.markupPercent, previousPercent: null, changedAt: nowIso(), changedBy: c.u.id, reason: "Starting markup" });
       c.s.wallets.push({ id: `w-${id}`, kind: "reseller", resellerId: id, balance: 0, outstanding: 0, lowThreshold: c.s.settings.lowWalletThreshold });
-      c.s.users.push({
+      const first: DUser = {
         id: `u-${id}`,
         username,
         fullName: r.contactName,
@@ -98,12 +99,15 @@ export const demoPeople = {
         recoveryCodesLeft: 0,
         passkeys: [],
         lockedUntil: null,
-        mustChangePassword: true,
+        mustChangePassword: false,
+        invitePending: true,
         lastSignInAt: null,
         createdAt: nowIso(),
-      });
-      audit(c, "reseller.created", "reseller", id, `Reseller ${r.companyName} created with markup ${r.markupPercent}%`, id);
-      return resellerView(c.s, r, rules.canSeeMarkup(c.me));
+      };
+      c.s.users.push(first);
+      const invitation = sendInvitation(c.s, first);
+      audit(c, "reseller.created", "reseller", id, `Reseller ${r.companyName} created with markup ${r.markupPercent}%; invitation sent to ${first.email}`, id);
+      return { ...resellerView(c.s, r, rules.canSeeMarkup(c.me)), invitation };
     }),
   updateReseller: (id: string, input: ResellerUpdate) =>
     write(() => {
@@ -133,7 +137,7 @@ export const demoPeople = {
       c.s.markupHistory.push({
         id: `mh${++c.s.seq}`,
         resellerId: id,
-        effectiveFrom: nextRatingDay(c),
+        effectiveAt: nowIso(),
         markupPercent: input.markupPercent,
         previousPercent: r.markupPercent,
         changedAt: nowIso(),
@@ -234,7 +238,7 @@ export const demoPeople = {
       return { envelope, resellerName: c.me.resellerName };
     }),
   createAssistant: (input: AssistantInput) =>
-    write((): Assistant => {
+    write((): Assistant & { invitation: Invitation } => {
       const c = authorize("team", "manage");
       requireRole(c, "reseller");
       const username = input.username.trim().toLowerCase();
@@ -256,13 +260,15 @@ export const demoPeople = {
         recoveryCodesLeft: 0,
         passkeys: [],
         lockedUntil: null,
-        mustChangePassword: true,
+        mustChangePassword: false,
+        invitePending: true,
         lastSignInAt: null,
         createdAt: nowIso(),
       };
       c.s.users.push(u);
-      audit(c, "assistant.created", "user", u.id, `Assistant ${u.fullName} created`, c.resellerId);
-      return assistantView(c.s, u);
+      const invitation = sendInvitation(c.s, u);
+      audit(c, "assistant.created", "user", u.id, `Assistant ${u.fullName} created; invitation sent to ${u.email}`, c.resellerId);
+      return { ...assistantView(c.s, u), invitation };
     }),
   setAssistantPermissions: (id: string, grants: Grants) =>
     write(() => {

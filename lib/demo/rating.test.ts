@@ -57,7 +57,18 @@ describe("rating: one formula everywhere", () => {
     expect(s.markupHistory.filter((m) => m.previousPercent !== null).length).toBe(2);
   });
 
-  it("no markup applies before it was set", () => {
-    for (const m of s.markupHistory) expect(m.effectiveFrom >= dateInZone(new Date(m.changedAt)), m.id).toBe(true);
+  it("a markup applies from the moment it was saved, never before", () => {
+    for (const m of s.markupHistory) expect(m.effectiveAt >= m.changedAt, m.id).toBe(true);
+  });
+
+  it("splits the day of a change at the moment it was saved", () => {
+    const change = s.markupHistory.find((m) => m.resellerId === "r3" && m.previousPercent === 35)!;
+    const day = dateInZone(new Date(change.effectiveAt));
+    const lines: { markup: number; mb: number }[] = [];
+    forEachPackageDay(s, (_p, _d, ls) => ls.forEach((l) => lines.push({ markup: l.markupPercent, mb: l.mb })), { packages: (_p, owner) => owner === "r3", from: day, to: day });
+    const before = lines.filter((l) => l.markup === 35).reduce((a, l) => a + l.mb, 0);
+    const after = lines.filter((l) => l.markup === 40).reduce((a, l) => a + l.mb, 0);
+    // saved at 16:40: 1000 of the day's 1440 minutes at the old markup
+    expect(before / (before + after)).toBeCloseTo(1000 / 1440, 6);
   });
 });

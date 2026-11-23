@@ -43,7 +43,7 @@ export function AlertsClient() {
     <FitPage>
       <PageHeader
         title={isTenant ? "Alerts and rules" : "Alerts"}
-        description={isTenant ? "What needs attention, and the usage rules that raise alerts or suspend eSIMs." : "Alerts about your eSIMs and your wallet."}
+        description={isTenant ? "What needs attention, and the usage rules that raise alerts or suspend eSIMs." : "Alerts about your own eSIMs, such as data use reaching a rule's threshold. Read only."}
         actions={
           manage && tab === "rules" ? (
             <Button onClick={() => setRuleDialog("new")}>

@@ -52,7 +52,8 @@ describe("operations", () => {
     as("u-r1");
     const mine = await demoOperations.listAlerts();
     expect(mine.length).toBeGreaterThan(0);
-    expect(mine.every((a) => a.resellerId === "r1")).toBe(true);
+    const own = new Set(db().esims.filter((e) => e.resellerId === "r1").map((e) => e.id));
+    expect(mine.every((a) => a.esimId && own.has(a.esimId))).toBe(true);
     await expect(demoOperations.setAlertStatus(mine[0]!.id, "resolved")).rejects.toMatchObject({ status: 403 });
     as("u-admin");
     const all = await demoOperations.listAlerts({ status: "active" });

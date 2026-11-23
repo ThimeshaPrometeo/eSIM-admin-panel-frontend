@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Fingerprint, KeyRound, Lock, MoreHorizontal, Plus, ShieldOff, Smartphone, UserCog } from "lucide-react";
+import { Fingerprint, KeyRound, Lock, Mail, MoreHorizontal, Plus, ShieldOff, Smartphone, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -10,7 +10,7 @@ import { Field } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/platform/confirm-dialog";
 import { DataTable, type Column } from "@/components/platform/data-table";
-import { CopyButton, FilterSelect, SearchInput } from "@/components/platform/fields";
+import { FilterSelect, SearchInput } from "@/components/platform/fields";
 import { FitPage } from "@/components/platform/fit-page";
 import { PageHeader } from "@/components/platform/primitives";
 import { StatusChip } from "@/components/platform/status-chip";
@@ -19,7 +19,8 @@ import { usePermission } from "@/hooks/use-permission";
 import { useResource } from "@/hooks/use-resource";
 import { accountsApi, type UserFilters } from "@/lib/api/accounts";
 import { formatDateTime, formatRelative } from "@/lib/platform/dates";
-import type { Role, UserAccount } from "@/lib/platform/types";
+import { invitationToast } from "@/lib/platform/invitation-toast";
+import type { Invitation, Role, UserAccount } from "@/lib/platform/types";
 
 const ROLE: Record<Role, string> = { admin: "Administrator", staff: "Staff", reseller: "Reseller", assistant: "Assistant" };
 type Act = { kind: "status" | "unlock" | "mfa" | "username" | "role"; user: UserAccount } | null;
@@ -70,11 +71,21 @@ export function UsersClient() {
       header: "Status",
       cell: (u) => (
         <span className="flex flex-col items-start gap-1">
-          <StatusChip status={u.status === "disabled" ? { label: "Disabled", tone: "neutral" } : u.locked ? { label: "Locked", tone: "danger" } : { label: "Active", tone: "positive" }} />
-          {u.locked && u.lockedUntil ? <span className="text-small text-fg-3">until {formatDateTime(u.lockedUntil).split(", ").pop()}</span> : u.mustChangePassword ? <span className="text-small text-fg-3">First sign-in pending</span> : null}
+          <StatusChip
+            status={
+              u.status === "disabled" ? { label: "Disabled", tone: "neutral" } : u.invite ? { label: "Invited", tone: u.invite.expired ? "warning" : "info" } : u.locked ? { label: "Locked", tone: "danger" } : { label: "Active", tone: "positive" }
+            }
+          />
+          {u.invite ? (
+            <span className="text-small text-fg-3">{u.invite.expired ? "Invitation expired" : `Link valid until ${formatDateTime(u.invite.expiresAt)}`}</span>
+          ) : u.locked && u.lockedUntil ? (
+            <span className="text-small text-fg-3">until {formatDateTime(u.lockedUntil).split(", ").pop()}</span>
+          ) : u.mustChangePassword ? (
+            <span className="text-small text-fg-3">Must change password</span>
+          ) : null}
         </span>
       ),
-      sortValue: (u) => (u.status === "disabled" ? 2 : u.locked ? 0 : 1),
+      sortValue: (u) => (u.status === "disabled" ? 3 : u.invite ? 2 : u.locked ? 0 : 1),
     },
     {
       id: "mfa",
@@ -122,6 +133,12 @@ export function UsersClient() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {u.invite ? (
+                      <DropdownMenuItem onSelect={() => run(() => accountsApi.resendInvitation(u.id), { silent: false }).then((r) => r.ok && invitationToast(r.result, `Invitation sent again to ${u.email}`))}>
+                        <Mail strokeWidth={1.5} />
+                        Resend invitation
+                      </DropdownMenuItem>
+                    ) : null}
                     {u.locked ? (
                       <DropdownMenuItem onSelect={() => setAct({ kind: "unlock", user: u })}>
                         <Lock strokeWidth={1.5} />
@@ -268,23 +285,27 @@ function AddStaffForm({ onDone }: { onDone: () => void }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [roleId, setRoleId] = useState("");
-  const [created, setCreated] = useState<{ user: UserAccount; temporaryPassword: string } | null>(null);
+  const [created, setCreated] = useState<{ user: UserAccount; invitation: Invitation } | null>(null);
   const { run, pending } = useAction();
   if (created)
     return (
       <>
         <DialogHeader>
-          <DialogTitle>{created.user.fullName} can sign in</DialogTitle>
-          <DialogDescription>Give them this temporary password in person or by phone. It&apos;s shown only now; they choose their own and set up two-factor at first sign-in.</DialogDescription>
+          <DialogTitle>Invitation sent</DialogTitle>
+          <DialogDescription>
+            {created.user.fullName} gets an email at {created.invitation.sentTo} with a link to set a password and then two-factor. The link works until{" "}
+            {formatDateTime(created.invitation.expiresAt)}; you can send it again from their row.
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center justify-between gap-3 rounded-control border border-border px-4 py-3">
-          <span className="flex flex-col">
-            <span className="text-small text-fg-3">Username {created.user.username}</span>
-            <span className="font-mono text-section">{created.temporaryPassword}</span>
-          </span>
-          <CopyButton value={created.temporaryPassword} label="Copy password" />
-        </div>
+        <p className="rounded-control border border-border px-4 py-3 text-body">
+          Username <span className="font-mono">{created.user.username}</span> · {created.user.staffRoleName}
+        </p>
         <DialogFooter>
+          {created.invitation.demoLink ? (
+            <Button variant="secondary" onClick={() => window.location.assign(created.invitation.demoLink!)}>
+              Open invitation (demo)
+            </Button>
+          ) : null}
           <Button onClick={onDone}>Done</Button>
         </DialogFooter>
       </>
@@ -293,7 +314,7 @@ function AddStaffForm({ onDone }: { onDone: () => void }) {
     <>
       <DialogHeader>
         <DialogTitle>Add a staff user</DialogTitle>
-        <DialogDescription>Someone on our team. What they can see and do comes from their staff role.</DialogDescription>
+        <DialogDescription>Someone on our team. They get an invitation to set their own password; what they can see and do comes from their staff role.</DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id={`${id}-n`} label="Full name">
@@ -327,11 +348,11 @@ function AddStaffForm({ onDone }: { onDone: () => void }) {
         <Button
           disabled={!fullName.trim() || username.length < 3 || !email.trim() || !roleId || pending}
           onClick={async () => {
-            const r = await run(() => accountsApi.createStaffUser({ fullName, username, email, staffRoleId: roleId }), { success: "Staff user added" });
+            const r = await run(() => accountsApi.createStaffUser({ fullName, username, email, staffRoleId: roleId }));
             if (r.ok) setCreated(r.result);
           }}
         >
-          Add staff user
+          Send invitation
         </Button>
       </DialogFooter>
     </>

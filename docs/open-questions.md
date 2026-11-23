@@ -29,6 +29,16 @@ For every question still open: **build on the stated assumption** (product, 2026
 | Q-DEMOPASSKEY | Demo passkey sign-in as the admin is fine for the demo |
 | Q-EXPORTLIBS | `jspdf` and `write-excel-file` approved (bundled, loaded on export only, no network calls) |
 
+### Decided (2026-11-23, review of phases 5–8)
+
+| # | Decision | Where |
+|---|---|---|
+| Q-EFFECTIVE | Markup and discount changes take effect **from the moment they're saved**: all usage priced after the save uses the new values, including plans already running; usage before it keeps the earlier values. Existing holds are not resized (the hold-exhaustion rule covers any shortfall). Markup history shows "effective from <date time>". | Spec 8.32; CONVENTIONS §6; `lib/demo/rating.ts` splits a day at the moment of a change |
+| Q-RESELLERALERTS | Resellers and assistants get an **Alerts** tab: read only, alerts on their own eSIMs only, no rule editing. | Spec 5.4, 8.9 |
+| Q-WEBHOOKS | Webhook URLs follow the backend's design: `/webhooks/yesim/<tenant>/<secret>/usage` and `/webhooks/yesim/<tenant>/<secret>/esim-status`; the secret is masked (demo mode shows the masked form only, no copy). | Spec 8.27; BB-25 |
+| Q-STAFFINVITE | **No admin-chosen passwords.** Creating any user (staff, a reseller's first user, an assistant) sends an invitation link, valid 72 hours, to set a password and then set up 2FA (not skippable on that path). Invited accounts can't sign in; the invitation can be sent again (the old link stops working). Demo mode shows "Invitation sent" and an "Open invitation" button. | Spec 8.15, 8.17, 8.24, 8.31; route `/invite`; BB-26 |
+| Q-MFARESET | Resetting two-factor removes all second factors (authenticator app, recovery codes and passkeys); the user sets them up again at next sign-in. Reason required, audit-logged. | Spec 8.24 |
+
 ## 1. Still open, building on the assumption
 
 | # | Question | Assumption until answered | Blocks |
@@ -82,12 +92,8 @@ do some actions. **Answered: follow the backend** (hide the action for roles it 
 | Q-DAILYLIMIT | Demo daily sale limit and cap | Demo uses 50/day and a cap of 500 so the demo can't hit the real live-test values (3/15) by accident |
 | Q-ROUTE2FA | 2FA set-up prompt needs a screen | New route `/login/setup-2fa`, skippable until go-live |
 | Q-EUROZONE | No real "Europe" zone exists in Yesim data (only TEST_LZ, ENIGMA_LZ, Italy; the first two contain unpriced networks and can't be used for plans) | Demo synthesises "Europe 30", "Asia travel" and "Worldwide" zones from priced networks, marked as created by us (demo-data.md §2.2) |
-| Q-RESELLERALERTS | Spec 8.9 says resellers and assistants see alerts for their own eSIMs, but the reseller navigation (spec 5.4) has no Alerts tab | Added "Alerts" under eSIM management for resellers (view only) and an Alerts row in the assistant permission matrix (13 areas) |
-| Q-WEBHOOKS | Webhook URLs on the Yesim connection page | Proposed paths `/api/v1/webhooks/yesim/esim-events` and `/usage-reports` on our own origin (BB-25); confirm the real ones |
 | Q-ALERTTYPES2 | The ten alert types in spec 8.9 | UI uses the backend names from Q-ALERTTYPES (`unpriced_network_usage`, `usage_rating_late`, `plan_held_by_daily_limit`, …); `zone_unpriced_networks` and `plan_waiting_funds` get labels once the definitive list arrives (BB-11) |
-| Q-STAFFINVITE | How does a new staff user get their first password? | Demo shows a temporary password once to the admin (forced change and 2FA at first sign-in). If the backend emails an invite link instead, the dialog says so (BB-26) |
-| Q-MFARESET | Does "Reset 2FA" also remove passkeys? | Yes in the demo (a lost phone often holds the passkey too); the dialog says so |
-| Q-2FASKIP | The 2FA prompt's "Remind me next time" | Lasts for the browser session; removed at go-live when 2FA becomes required (Q-ROUTE2FA) |
+| Q-2FASKIP | The 2FA prompt's "Remind me next time" | Lasts for the browser session; not offered after accepting an invitation; removed at go-live when 2FA becomes required (Q-ROUTE2FA) |
 
 ## 5. Repository
 

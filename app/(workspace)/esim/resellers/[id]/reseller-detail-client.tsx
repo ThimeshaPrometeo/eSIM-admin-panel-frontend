@@ -291,7 +291,7 @@ function PricingTab({ reseller }: { reseller: Reseller }) {
   const cols: Column<MarkupChange>[] = [
     { id: "when", header: "Changed", cell: (m) => <span className="text-fg-2">{formatDate(m.changedAt)}</span>, sortValue: (m) => m.changedAt, hideable: false },
     { id: "change", header: "Markup", cell: (m) => (m.previousPercent === null ? `${m.markupPercent}% (starting)` : <span className="font-medium">{m.previousPercent}% → {m.markupPercent}%</span>) },
-    { id: "from", header: "Applies from", cell: (m) => formatDate(m.effectiveFrom) },
+    { id: "from", header: "Effective from", cell: (m) => formatDateTime(m.effectiveAt), sortValue: (m) => m.effectiveAt },
     { id: "who", header: "By", cell: (m) => m.changedBy },
     { id: "reason", header: "Reason", cell: (m) => <span className="text-fg-2">{m.reason}</span>, className: "whitespace-normal min-w-48" },
   ];

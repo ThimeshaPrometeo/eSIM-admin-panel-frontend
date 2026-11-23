@@ -20,10 +20,25 @@ describe("users", () => {
     expect((await demoAccounts.listUsers({ state: "no_app" })).map((u) => u.username)).toContain("dilini");
   });
 
-  it("creates a staff user who must change password and set up 2FA", async () => {
-    const { user, temporaryPassword } = await demoAccounts.createStaffUser({ fullName: "Test Person", username: "test.person", email: "t@example.com", staffRoleId: "sr-support" });
-    expect(user.mustChangePassword && !user.mfaApp).toBe(true);
-    expect(temporaryPassword.length).toBeGreaterThan(8);
+  it("invites a staff user: no password chosen for them; they can't sign in until they accept", async () => {
+    const { user, invitation } = await demoAccounts.createStaffUser({ fullName: "Test Person", username: "test.person", email: "t@example.com", staffRoleId: "sr-support" });
+    expect(user.invite && !user.invite.expired && !user.mfaApp).toBeTruthy();
+    const hours = (Date.parse(invitation.expiresAt) - Date.now()) / 3600000;
+    expect(hours).toBeGreaterThan(71.9);
+    expect(hours).toBeLessThanOrEqual(72);
+    db().session = { userId: null, pendingMfaUserId: null };
+    await expect(demoAuth.login({ username: "test.person", password: "anything-long" })).rejects.toMatchObject({ code: "INVITE_PENDING" });
+    const token = new URLSearchParams(invitation.demoLink!.split("?")[1]).get("token")!;
+    // a resent invitation replaces the old link
+    db().session = { userId: "u-admin", pendingMfaUserId: null };
+    const again = await demoAccounts.resendInvitation(user.id);
+    expect((await demoAuth.checkInvitation(token)).state).toBe("invalid");
+    const fresh = new URLSearchParams(again.demoLink!.split("?")[1]).get("token")!;
+    db().session = { userId: null, pendingMfaUserId: null };
+    const me = await demoAuth.acceptInvitation({ token: fresh, newPassword: "my-own-password" });
+    expect(me.username).toBe("test.person");
+    expect(me.mfaEnrolled || me.hasPasskey).toBe(false); // 2FA set-up comes next
+    db().session = { userId: "u-admin", pendingMfaUserId: null };
     await expect(demoAccounts.createStaffUser({ fullName: "X", username: "test.person", email: "x@example.com", staffRoleId: "sr-support" })).rejects.toMatchObject({ status: 409 });
   });
 

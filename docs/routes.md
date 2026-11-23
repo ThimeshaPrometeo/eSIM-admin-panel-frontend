@@ -15,6 +15,7 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | `/login/change-password` | 8.31 | signed in, `mustChangePassword` | forced | `changePassword` (POST /auth/change-password) | `PasswordStrength` | yes |
 | `/login/setup-2fa` *(new, Q-ROUTE2FA)* | 8.31 | signed in, not enrolled | prompted (enforced from go-live) | `setupTotp`, `enableTotp` | `TotpSetup`, `RecoveryCodes` | yes (Phase 7) |
 | `/forgot-password` | 8.31 | public | | `forgotPassword` | | yes (Phase 7) |
+| `/invite` | 8.24, 8.31 | public | `?token=` | `checkInvitation`, `acceptInvitation`, then `/login/setup-2fa?invite=1` | `InvitationCard` | yes (decisions 2026-11-23) |
 | `/reset-password` | 8.31 | public | `?token=` | `resetPassword` | | yes (Phase 7) |
 
 ## 2. Workspace (`app/esim/*`, inside `AppShell`)
@@ -86,7 +87,7 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 |---|---|
 | Overview | Dashboard → `/esim/dashboard` |
 | Sales | Sell eSIM → `/esim/sell` · My plans → `/esim/my-plans` · Coverage → `/esim/coverage` · Price list → `/esim/price-list` |
-| eSIM management | My eSIMs → `/esim/esims` · Orders → `/esim/orders` · Usage → `/esim/usage` · Alerts → `/esim/alerts` (view only; Q-RESELLERALERTS) |
+| eSIM management | My eSIMs → `/esim/esims` · Orders → `/esim/orders` · Usage → `/esim/usage` · Alerts → `/esim/alerts` (view only, own eSIMs; Q-RESELLERALERTS) |
 | Customer management | Customers → `/esim/customers` |
 | Finance | Wallet → `/esim/wallet` · Transactions → `/esim/transactions` · Invoices → `/esim/invoices` |
 | Team management | Assistants → `/esim/assistants` (module `team`) |

@@ -5,15 +5,15 @@ it can be shown in order. Before starting: **user menu → Reset demo data**, da
 1440 × 900 or larger (every page fits one screen there).
 
 Sign in with any password and any 6-digit code. Usernames: `nadeesha` (admin), `kasun` (staff, Support),
-`amaya` (reseller, Lanka Roam Travels), `sahan` (assistant), `dilini` (new staff colleague: forced password
-change, then the 2FA set-up prompt), `ishara` (locked assistant). The role switcher in the user menu changes role without signing out.
+`amaya` (reseller, Lanka Roam Travels), `sahan` (assistant), `dilini` (new staff colleague, invited, can't sign in
+yet), `ishara` (locked assistant). The role switcher in the user menu changes role without signing out.
 
 ## 1. Sign in (1 min)
 
 - Open `/`. The globe shows real coverage (172 countries with a priced network) and demo activity chips.
 - Sign in as `nadeesha`, then the 2FA step (any 6 digits).
-- Say: passkeys and recovery codes are supported; the first sign-in forces a password change (show it later
-  with `dilini` if asked).
+- Say: passkeys and recovery codes are supported; new people join through an invitation (show it later
+  from Users if asked).
 
 ## 2. Admin dashboard (2 min)
 
@@ -36,7 +36,8 @@ change, then the 2FA set-up prompt), `ishara` (locked assistant). The role switc
 ## 4. Create a reseller with a markup (2 min)
 
 - **Resellers → Create reseller**: company "Ceylon Explorer Tours", contact, email, username `kavya`, markup
-  **22%**. It's created only in this platform; nothing at the supplier.
+  **22%**. It's created only in this platform; nothing at the supplier. Their first user gets an invitation
+  (the toast has **Open invitation** in the demo; don't open it now, it would sign you in as them).
 - On its page: **Change markup** (admin only, reason required, audit trail), **Discounts → Add discount**
   with the live before/after price.
 - Open **Lanka Roam Travels**: available **€0.40**, almost the whole balance held for running plans, **2 plans
@@ -87,10 +88,10 @@ rated usage lines, so the figures agree to the cent.
    Italian network; the right-hand card writes the formula out in plain numbers (Yesim cost → markup →
    discount → what they pay → our profit). Switch the reseller to **Direct sale** to show the retail price.
 3. **Change a markup.** **Resellers → Lanka Roam Travels → Change markup**: 25% → **30%**, reason "Higher
-   support cost". The dialog says it rates usage **from tomorrow**; charges already made keep the markup of
-   their day.
+   support cost". It applies from the moment you save, including plans already running; usage before it
+   keeps 25%, and running holds aren't resized.
 4. **See their price change.** Back to **Price list → Price breakdown**: Lanka Roam's prices are up 4%
-   (1.30 ÷ 1.25). **History → Markup changes** lists the change with who, when, why and from which day.
+   (1.30 ÷ 1.25). **History → Markup changes** lists the change with who, when, why and the moment it took effect. Nomad Connect's change (35% → 40%) shows how a day with a change is priced: open a usage charge of theirs from that day and the lines before 16:40 are at 35%, after at 40%.
    **History → Yesim price versions** shows what changed in Yesim's list in version 14 (4 networks up, 4
    down) and what each reseller pays now.
 5. **A usage charge's breakdown.** **Finance → Transactions**, a **Usage charge** row → **How was this
@@ -118,9 +119,11 @@ rated usage lines, so the figures agree to the cent.
 - **People and security**: **Users** (Ishara is locked: **Unlock**; **Reset two-factor** needs a reason);
   **Staff roles** (the matrix stops at what staff may have); **Audit log** (open a markup change: before
   and after); **Profile and security** (authenticator app, recovery codes, passkeys, sign out everywhere).
-- **First sign-in**: sign out, sign in as `dilini`: new password, then the 2FA set-up prompt with QR code
-  and key, then recovery codes. **Forgot password?** on the sign-in page shows the reset flow (the demo
-  shows the link instead of emailing it).
+- **Invitations**: nobody chooses another person's password. **Users → Add staff user** sends an invitation
+  (valid 72 hours); **Open invitation (demo)** shows what they get: set a password, then two-factor with QR
+  code and key, then recovery codes, then the dashboard. Creating a reseller or an assistant works the same
+  way. Dilini (invited two days ago) can't sign in yet. **Forgot password?** on the sign-in page shows the
+  reset flow (the demo shows the link instead of emailing it).
 - **Theme**: the sun/moon button; every page has a light theme.
 - **Phone**: the bottom navigation and section tabs.
 

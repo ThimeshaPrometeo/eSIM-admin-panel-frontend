@@ -7,7 +7,7 @@ import type { Grants } from "@/lib/platform/permission-matrix";
 import type { EsimStatus, HoldStatus, InstallStatus, OrderStatus, SuspendedBy, TopupStatus } from "@/lib/platform/status";
 import type { AlertType, LedgerType, Role } from "@/lib/platform/types";
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 13;
 
 export type DUser = {
   id: string;
@@ -28,6 +28,8 @@ export type DUser = {
   recoveryCodesLeft: number;
   passkeys: DPasskey[];
   mustChangePassword: boolean;
+  /** Invited and hasn't set a password yet: can't sign in (decided 2026-11-23). */
+  invitePending: boolean;
   /** Locked after 10 failed sign-ins, for 15 minutes or until an admin unlocks. */
   lockedUntil: string | null;
   lastSignInAt: string | null;
@@ -80,10 +82,10 @@ export type DDiscount = {
   percent: number;
   status: "active" | "inactive";
   createdAt: string;
-  /** First day (YYYY-MM-DD) usage is rated with it; changes made in the demo apply from the next rating day. */
-  effectiveFrom: string;
-  /** First day it no longer applies (removed or replaced), or null. */
-  endedOn: string | null;
+  /** From this moment (ISO) usage is priced with it: the moment it was saved. */
+  effectiveAt: string;
+  /** The moment it stopped applying (removed or replaced), or null. */
+  endedAt: string | null;
   createdBy: string | null;
 };
 
@@ -95,11 +97,12 @@ export type DPriceVersion = {
   changes: { networkId: string; oldCost: number; newCost: number }[];
 };
 
-/** A reseller's markup from a day on (first entry = the markup they started with). */
+/** A reseller's markup from the moment it was saved (first entry = the markup they started with). */
 export type DMarkupChange = {
   id: string;
   resellerId: string;
-  effectiveFrom: string;
+  /** ISO time from which usage is priced with it (the save). */
+  effectiveAt: string;
   markupPercent: number;
   previousPercent: number | null;
   changedAt: string;
@@ -281,6 +284,8 @@ export type DState = {
   schema: number;
   /** The demo's "today" (Asia/Colombo) when it was seeded. */
   seededOn: string;
+  /** When the demo data was created: today's usage runs up to this moment. */
+  seededAt: string;
   session: { userId: string | null; pendingMfaUserId: string | null };
   seq: number;
   settings: DSettings;
@@ -316,4 +321,6 @@ export type DState = {
   mfaSetup: { userId: string; secret: string } | null;
   /** Password reset links sent (demo: shown on screen instead of emailed). */
   resetTokens: { token: string; userId: string; expiresAt: string }[];
+  /** Invitation links (one live link per user; 72 hours). */
+  invitations: { token: string; userId: string; sentAt: string; expiresAt: string }[];
 };

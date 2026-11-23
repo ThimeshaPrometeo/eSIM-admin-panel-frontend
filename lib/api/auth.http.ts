@@ -20,6 +20,8 @@ export const httpAuth: AuthApi = {
   forgotPassword: (input) => apiFetch<void>("/auth/forgot-password", { method: "POST", body: input }).then(() => ({ sent: true as const, demoLink: null })),
   checkResetToken: (token) => apiFetch<{ valid: boolean }>("/auth/reset-password/check", { query: { token } }),
   resetPassword: (input) => apiFetch<void>("/auth/reset-password", { method: "POST", body: input }),
+  checkInvitation: (token) => apiFetch<{ state: "valid" | "expired" | "invalid"; fullName: string | null; username: string | null }>("/auth/invitations/check", { query: { token } }),
+  acceptInvitation: (input) => apiFetch<Me>("/auth/invitations/accept", { method: "POST", body: input }),
   switchDemoRole: async () => {
     throw new ApiError(400, "DEMO_ONLY");
   },

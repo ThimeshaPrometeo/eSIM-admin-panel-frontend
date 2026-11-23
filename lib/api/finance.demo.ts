@@ -421,7 +421,7 @@ export const demoFinance = {
           id: m.id,
           resellerId: m.resellerId,
           resellerName: resellerName(c.s, m.resellerId),
-          effectiveFrom: m.effectiveFrom,
+          effectiveAt: m.effectiveAt,
           markupPercent: m.markupPercent,
           previousPercent: m.previousPercent,
           changedAt: m.changedAt,
@@ -499,12 +499,12 @@ export const demoFinance = {
       requireRole(c, "admin");
       const st = c.s.settings;
       const changed: string[] = [];
-      // a new retail markup applies to usage rated from now on; the history keeps past days' rate
+      // a new retail markup applies to usage from the moment it's saved; the history keeps the earlier rate
       if (input.retailMarkupPercent !== undefined && input.retailMarkupPercent !== st.retailMarkupPercent)
         c.s.markupHistory.push({
           id: `mh${++c.s.seq}`,
           resellerId: "house",
-          effectiveFrom: addDays(c.s.seededOn, 1),
+          effectiveAt: new Date().toISOString(),
           markupPercent: input.retailMarkupPercent,
           previousPercent: st.retailMarkupPercent,
           changedAt: new Date().toISOString(),

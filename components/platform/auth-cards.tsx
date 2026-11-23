@@ -314,3 +314,80 @@ export function SetupTwoFactorCard({
     </CardShell>
   );
 }
+
+/** Accept an invitation (decided 2026-11-23): set your own password; two-factor comes next. */
+export function InvitationCard({
+  state,
+  fullName,
+  username,
+  onSubmit,
+  busy,
+  error,
+}: {
+  state: "checking" | "valid" | "expired" | "invalid";
+  fullName: string | null;
+  username: string | null;
+  onSubmit: (password: string) => void | Promise<void>;
+  busy?: boolean;
+  error?: string | null;
+}) {
+  const cardRef = useCardRef();
+  const id = useId();
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const mismatch = confirm.length > 0 && confirm !== next;
+  const ready = next.length >= 10 && next === confirm;
+  if (state === "expired" || state === "invalid")
+    return (
+      <CardShell
+        ref={cardRef}
+        title={state === "expired" ? "This invitation has expired" : "This invitation can't be used"}
+        sub={state === "expired" ? "Invitations work for 72 hours. Ask your administrator to send a new one." : "It was already used or replaced by a newer one. Sign in, or ask for a new invitation."}
+        onSubmit={(e) => e.preventDefault()}
+      >
+        <div className="mt-5 flex flex-col gap-3">
+          <BackLink />
+        </div>
+        <CardFoot />
+      </CardShell>
+    );
+  const field = (key: string, label: string, value: string, set: (v: string) => void, hint?: string, invalid?: boolean) => (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={`${id}-${key}`} className={labelClass}>
+        {label}
+      </label>
+      <div className="si-field pl-3.5 pr-1" data-invalid={invalid ? "true" : undefined}>
+        <Lock aria-hidden="true" className="mr-3 size-[18px] shrink-0 text-[var(--si-fg-subtle)]" strokeWidth={1.75} />
+        <input id={`${id}-${key}`} type={show ? "text" : "password"} autoComplete="new-password" value={value} onChange={(e) => set(e.target.value)} aria-invalid={invalid || undefined} required />
+      </div>
+      {hint ? <p className={cn("text-[12px]", invalid ? "text-[var(--si-danger)]" : "text-[var(--si-fg-subtle)]")}>{hint}</p> : null}
+    </div>
+  );
+  return (
+    <CardShell
+      ref={cardRef}
+      title={fullName ? `Welcome, ${fullName.split(" ")[0]}` : "Welcome"}
+      sub={username ? `Set a password for ${username}. Next you'll set up two-factor authentication.` : "Checking your invitation…"}
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!busy && ready) await onSubmit(next);
+      }}
+      busy={busy || state === "checking"}
+    >
+      <div className="mt-5 flex flex-col gap-4 short:mt-4 short:gap-3">
+        {field("next", "Password", next, setNext, "At least 10 characters.", next.length > 0 && next.length < 10)}
+        {field("confirm", "Confirm password", confirm, setConfirm, mismatch ? "The two passwords don't match." : undefined, mismatch)}
+        <label className="flex items-center gap-2 text-[13px] text-[var(--si-fg-muted)]">
+          <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} className="size-4 accent-[var(--si-blue)]" />
+          Show passwords
+        </label>
+        <ErrorLine error={error} />
+        <Submit busy={busy} disabled={!ready || state !== "valid"}>
+          Set password and continue
+        </Submit>
+      </div>
+      <CardFoot />
+    </CardShell>
+  );
+}

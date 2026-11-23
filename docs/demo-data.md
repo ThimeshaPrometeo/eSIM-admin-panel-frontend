@@ -130,7 +130,7 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Data | Shape |
 |---|---|
 | Yesim price versions | v12 (−130 days, starting prices), v13 (−74 days: Vodafone Italy −4%, one Greek network +6%), v14 (−32 days: TIM Italy +12%, Vodafone Spain −8%, Etisalat UAE +18%, NTT Docomo −6%, Orange France −5%, True Thailand +10%, Dialog Sri Lanka +7%, O2 Germany −9%). Today's catalogue price is v14; older prices are derived from it |
-| Markup history | Every reseller's starting markup from their sign-up day; Blue Horizon 12% → 15% (−50 days), Nomad Connect 35% → 40% (−20 days); retail markup 60% for direct sales |
+| Markup history | Every reseller's starting markup from their sign-up day; Blue Horizon 12% → 15% (−50 days, 16:40), Nomad Connect 35% → 40% (−20 days, 16:40); each takes effect at the moment it was saved, so that day's usage is split; retail markup 60% for direct sales |
 | Usage lines | Per plan, day and network: about a third of days split 20–70% onto a second network in the same country, so a day can have two rates |
 | Supplier account | Deposits €2,500 / €2,000 / €2,000 / €1,500; the balance Yesim reports is €3.82 below what our records imply (tolerance €5) |
 | Statements | Last three full months per reseller; opening + top-ups − usage = closing, to the cent |
@@ -140,7 +140,7 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Account | State |
 |---|---|
 | Nadeesha (admin) | Authenticator app, 8 recovery codes left, one passkey (MacBook Touch ID) |
-| Dilini (staff, Finance) | New: forced password change, then the 2FA set-up prompt |
+| Dilini (staff, Finance) | Invited two days ago, link valid one more day: can't sign in until she opens it (Users → her row → Resend invitation → Open invitation) |
 | Ishara (assistant) | Locked after 10 failed sign-ins (unlock in Users, or wait 15 minutes, or reset the password) |
 | Ruwan (assistant) | Disabled by Lanka Roam Travels 15 days ago |
 
@@ -157,9 +157,9 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Approve top-up | Ledger `topup`, outstanding recovered first, receipt created, **funding queue run** (oldest first, skip ahead), waiting plans unblock, notifications |
 | Reject top-up | Status rejected with reason |
 | Suspend / reactivate eSIM | Status + `suspendedBy`; reseller can't lift admin suspensions (`ApiError 403`) |
-| Change markup | Reseller markup updated; a markup-history entry applying from tomorrow (today's charges keep the old markup); audit entry |
-| Change or end a discount | The old discount ends (end date kept), the new one applies from tomorrow |
-| Change settings | Retail markup change adds a "house" markup-history entry from tomorrow; watermark switches apply to the next PDF |
+| Change markup | Reseller markup updated; a markup-history entry effective from the moment of saving (usage before it keeps the old markup; holds aren't resized); audit entry |
+| Change or end a discount | The old discount ends at the moment of saving (end time kept), the new one applies from then |
+| Change settings | Retail markup change adds a "house" markup-history entry effective from the save; watermark switches apply to the next PDF |
 | Assistant toggles | Grants updated; switching to that assistant shows the new navigation |
 | Manual adjustment | Ledger row; never below reserved (`409 INSUFFICIENT_AVAILABLE`) |
 | End of life | Status `END_OF_LIFE`, plans ended, holds settled; further status changes `409 END_OF_LIFE_FINAL` |

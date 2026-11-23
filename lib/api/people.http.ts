@@ -1,6 +1,6 @@
 import { apiFetch } from "./client";
 import type { PeopleApi } from "./people.demo";
-import type { Assistant, AuditEntry, Customer, DocumentRow, Page, PermissionContext, Reseller } from "@/lib/platform/types";
+import type { Assistant, AuditEntry, Customer, DocumentRow, Invitation, Page, PermissionContext, Reseller } from "@/lib/platform/types";
 
 const list = <T,>(path: string, query?: Record<string, string | number | boolean | null | undefined>) => apiFetch<Page<T>>(path, { query: { pageSize: 100, ...query } }).then((r) => r.data);
 
@@ -8,7 +8,7 @@ export const httpPeople: PeopleApi = {
   listResellers: (f = {}) => list<Reseller>("/resellers", { q: f.q, status: f.status }),
   listResellerOptions: () => list<Reseller>("/resellers").then((rs) => rs.map((r) => ({ id: r.id, name: r.companyName, status: r.status }))),
   getReseller: (id) => apiFetch<Reseller>(`/resellers/${id}`),
-  createReseller: (input) => apiFetch<Reseller>("/resellers", { method: "POST", body: input }),
+  createReseller: (input) => apiFetch<Reseller & { invitation: Invitation }>("/resellers", { method: "POST", body: input }),
   updateReseller: (id, input) => apiFetch<void>(`/resellers/${id}`, { method: "PATCH", body: input }),
   setResellerStatus: (id, input) => apiFetch<void>(`/resellers/${id}/status`, { method: "PATCH", body: input }),
   setResellerMarkup: (id, input) => apiFetch<void>(`/resellers/${id}/markup`, { method: "PATCH", body: input }),
@@ -29,7 +29,7 @@ export const httpPeople: PeopleApi = {
       envelope: (r.envelopes?.role ?? r.effective) as PermissionContext["envelope"],
       resellerName: null,
     })),
-  createAssistant: (input) => apiFetch<Assistant>("/assistants", { method: "POST", body: { ...input, permissions: input.grants } }),
+  createAssistant: (input) => apiFetch<Assistant & { invitation: Invitation }>("/assistants", { method: "POST", body: { ...input, permissions: input.grants } }),
   setAssistantPermissions: (id, grants) => apiFetch<void>(`/assistants/${id}/permissions`, { method: "PUT", body: { permissions: grants } }),
   updateAssistant: (id, input) => apiFetch<void>(`/assistants/${id}`, { method: "PATCH", body: input }),
   setAssistantStatus: (id, input) => apiFetch<void>(`/assistants/${id}/status`, { method: "PATCH", body: input }),

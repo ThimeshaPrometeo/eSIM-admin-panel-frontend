@@ -74,6 +74,6 @@ describe("financial figures agree across pages", () => {
     expect(row(after) / row(before)).toBeCloseTo(1.3 / 1.25, 9);
     expect(ledgerUsage("w-r1", "0000", "9999")).toBeCloseTo(ledgerBefore, 2);
     expect((await demoFinance.getInvoice(docs[0]!.id)).totals.usage).toBeCloseTo(stBefore, 2);
-    expect((await demoFinance.listMarkupHistory("r1")).some((m) => m.previousPercent === 25 && m.markupPercent === 30 && m.effectiveFrom === addDays(db().seededOn, 1))).toBe(true);
+    expect((await demoFinance.listMarkupHistory("r1")).some((m) => m.previousPercent === 25 && m.markupPercent === 30 && m.effectiveAt >= db().seededAt)).toBe(true);
   });
 });

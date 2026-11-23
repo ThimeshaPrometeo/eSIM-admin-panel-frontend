@@ -2,7 +2,7 @@
 
 import { FitPage } from "@/components/platform/fit-page";
 import { useId, useState } from "react";
-import { Plus, ShieldCheck, UserX } from "lucide-react";
+import { Mail, Plus, ShieldCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,9 @@ import { StatusChip } from "@/components/platform/status-chip";
 import { useAction } from "@/hooks/use-action";
 import { usePermission } from "@/hooks/use-permission";
 import { useResource } from "@/hooks/use-resource";
+import { accountsApi } from "@/lib/api/accounts";
 import { peopleApi } from "@/lib/api/people";
+import { invitationToast } from "@/lib/platform/invitation-toast";
 import { formatRelative } from "@/lib/platform/dates";
 import { enabledCount, RESELLER_MATRIX, type Grants } from "@/lib/platform/permission-matrix";
 import { USER_STATUS } from "@/lib/platform/status-labels";
@@ -53,7 +55,7 @@ export function AssistantsClient() {
       hideable: false,
     },
     ...(!team ? [{ id: "reseller", header: "Reseller", cell: (a: Assistant) => a.resellerName, sortValue: (a: Assistant) => a.resellerName }] : []),
-    { id: "status", header: "Status", cell: (a) => <StatusChip status={USER_STATUS[a.status]} />, sortValue: (a) => a.status },
+    { id: "status", header: "Status", cell: (a) => <StatusChip status={a.invited && a.status === "active" ? { label: "Invited", tone: "info" } : USER_STATUS[a.status]} />, sortValue: (a) => (a.invited ? "invited" : a.status) },
     {
       id: "access",
       header: "Access",
@@ -85,6 +87,12 @@ export function AssistantsClient() {
             <ShieldCheck strokeWidth={1.5} />
             {team ? "Permissions" : "View access"}
           </Button>
+          {team && a.invited ? (
+            <Button variant="ghost" size="sm" onClick={() => run(() => accountsApi.resendInvitation(a.id)).then((r) => r.ok && invitationToast(r.result, `Invitation sent again to ${a.email}`))}>
+              <Mail strokeWidth={1.5} />
+              Resend invitation
+            </Button>
+          ) : null}
           {team || (canDisableAny && a.status === "active") ? (
             <Button variant="ghost" size="sm" onClick={() => setToggling(a)}>
               <UserX strokeWidth={1.5} />
@@ -195,7 +203,7 @@ function CreateAssistant({ envelope, onDone }: { envelope: Grants; onDone: () =>
     <>
       <DialogHeader>
         <DialogTitle>Add assistant</DialogTitle>
-        <DialogDescription>They get an email to set their password, and sign in with their own account.</DialogDescription>
+        <DialogDescription>They get an invitation by email (valid 72 hours) to set their own password and then two-factor.</DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field id={`${id}-n`} label="Full name">
@@ -218,8 +226,11 @@ function CreateAssistant({ envelope, onDone }: { envelope: Grants; onDone: () =>
         <Button
           disabled={!valid || pending}
           onClick={async () => {
-            const r = await run(() => peopleApi.createAssistant({ fullName, username, email, grants }), { success: (a) => `${a.fullName} added` });
-            if (r.ok) onDone();
+            const r = await run(() => peopleApi.createAssistant({ fullName, username, email, grants }));
+            if (r.ok) {
+              invitationToast(r.result.invitation, `${r.result.fullName} added · invitation sent`);
+              onDone();
+            }
           }}
         >
           Add assistant

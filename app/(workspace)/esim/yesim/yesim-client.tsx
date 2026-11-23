@@ -104,10 +104,10 @@ function Body({ d }: { d: SupplierStatus }) {
         <div className="flex flex-col gap-4">
           <GlassCard className="flex flex-col gap-3">
             <h2 className="text-section font-semibold">Webhook addresses</h2>
-            <p className="text-small text-fg-2">Give these to Yesim so it can tell us about eSIM changes and usage.</p>
+            <p className="text-small text-fg-2">Yesim sends usage and eSIM status changes here. Each address holds a secret, shown masked.</p>
             <ul className="flex flex-col gap-2">
               {d.webhooks.map((w) => (
-                <Webhook key={w.path} label={w.label} path={w.path} />
+                <Webhook key={w.path} label={w.label} path={w.path} masked={w.secretMasked} />
               ))}
             </ul>
           </GlassCard>
@@ -210,7 +210,7 @@ function Row({ label, value, strong, tone }: { label: string; value: string; str
 }
 
 const noop = () => () => {};
-function Webhook({ label, path }: { label: string; path: string }) {
+function Webhook({ label, path, masked }: { label: string; path: string; masked: boolean }) {
   // the full address uses this site's origin; known only in the browser
   const origin = useSyncExternalStore(noop, () => window.location.origin, () => "");
   const url = `${origin}${path}`;
@@ -220,7 +220,7 @@ function Webhook({ label, path }: { label: string; path: string }) {
         <span className="text-small text-fg-2">{label}</span>
         <span className="truncate font-mono text-small">{url}</span>
       </span>
-      <CopyButton value={url} label="Copy address" />
+      {masked ? <span className="shrink-0 text-small text-fg-3">Secret hidden</span> : <CopyButton value={url} label="Copy address" />}
     </li>
   );
 }

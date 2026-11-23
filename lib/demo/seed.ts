@@ -91,6 +91,7 @@ export function createSeed(now: Date = new Date()): DState {
     recoveryCodesLeft: 10,
     passkeys: [],
     mustChangePassword: false,
+    invitePending: false,
     lastSignInAt: at(-rng.int(0, 6), rng.int(8, 18), rng.int(0, 59)),
     createdAt: at(-rng.int(120, 320)),
     ...u,
@@ -106,8 +107,8 @@ export function createSeed(now: Date = new Date()): DState {
       passkeys: [{ id: "pk-1", name: "MacBook Touch ID", createdAt: at(-140, 10, 12), lastUsedAt: at(-1, 9, 2) }],
     }),
     user({ id: "u-support", username: "kasun", fullName: "Kasun Silva", email: "kasun@company.example", role: "staff", staffRoleId: "sr-support" }),
-    // a new Finance colleague: first sign-in still to come (forced password change, 2FA not set up yet)
-    user({ id: "u-finance", username: "dilini", fullName: "Dilini Fernando", email: "dilini@company.example", role: "staff", staffRoleId: "sr-finance", mfaEnrolled: false, mustChangePassword: true, lastSignInAt: null, createdAt: at(-2) }),
+    // a new Finance colleague, invited two days ago: hasn't set a password or 2FA yet (link valid for 72 hours)
+    user({ id: "u-finance", username: "dilini", fullName: "Dilini Fernando", email: "dilini@company.example", role: "staff", staffRoleId: "sr-finance", mfaEnrolled: false, recoveryCodesLeft: 0, invitePending: true, lastSignInAt: null, createdAt: at(-2) }),
     ...resellers.map((r, i) =>
       user({
         id: `u-${r.id}`,
@@ -185,8 +186,8 @@ export function createSeed(now: Date = new Date()): DState {
     percent,
     status: "active" as const,
     createdAt: at(offset),
-    effectiveFrom: addDays(today, offset),
-    endedOn: null,
+    effectiveAt: at(offset),
+    endedAt: null,
     createdBy: "u-admin",
   });
   const discounts = [discount("d1", "r1", null, 5, -90), discount("d2", "r1", "p-it3", 10, -60), discount("d3", "r3", null, 8, -75), discount("d4", "r5", "p-eu10", 3, -40)];
@@ -215,17 +216,16 @@ export function createSeed(now: Date = new Date()): DState {
   ];
 
   // ---- markup history: everyone starts at their first markup; two resellers changed since
-  const houseRetail = { id: "mh-house-0", resellerId: "house", effectiveFrom: addDays(today, -300), markupPercent: 60, previousPercent: null, changedAt: at(-300), changedBy: "u-admin", reason: "Starting retail markup" };
+  const houseRetail = { id: "mh-house-0", resellerId: "house", effectiveAt: at(-300), markupPercent: 60, previousPercent: null, changedAt: at(-300), changedBy: "u-admin", reason: "Starting retail markup" };
   const resellerMarkups = resellers.flatMap((r) => {
-    // the starting markup applies from the day the reseller was added
-    const startDate = dateInZone(new Date(r.createdAt));
+    // the starting markup applies from the moment the reseller was added
     const changes: Record<string, { from: number; offset: number; reason: string; first: number }> = {
       r2: { first: 12, from: 15, offset: -50, reason: "Volume agreement renewed" },
       r3: { first: 35, from: 40, offset: -20, reason: "Higher support cost for long-stay customers" },
     };
     const c = changes[r.id];
-    const first = { id: `mh-${r.id}-0`, resellerId: r.id, effectiveFrom: startDate, markupPercent: c?.first ?? r.markupPercent, previousPercent: null, changedAt: r.createdAt, changedBy: "u-admin", reason: "Starting markup" };
-    return c ? [first, { id: `mh-${r.id}-1`, resellerId: r.id, effectiveFrom: addDays(today, c.offset), markupPercent: c.from, previousPercent: c.first, changedAt: at(c.offset - 1, 16, 40), changedBy: "u-admin", reason: c.reason }] : [first];
+    const first = { id: `mh-${r.id}-0`, resellerId: r.id, effectiveAt: r.createdAt, markupPercent: c?.first ?? r.markupPercent, previousPercent: null, changedAt: r.createdAt, changedBy: "u-admin", reason: "Starting markup" };
+    return c ? [first, { id: `mh-${r.id}-1`, resellerId: r.id, effectiveAt: at(c.offset, 16, 40), markupPercent: c.from, previousPercent: c.first, changedAt: at(c.offset, 16, 40), changedBy: "u-admin", reason: c.reason }] : [first];
   });
   const markupHistory = [houseRetail, ...resellerMarkups];
 
@@ -255,6 +255,7 @@ export function createSeed(now: Date = new Date()): DState {
   const s: DState = {
     schema: SCHEMA_VERSION,
     seededOn: today,
+    seededAt: now.toISOString(),
     session: { userId: null, pendingMfaUserId: null },
     seq: 0,
     settings,
@@ -292,6 +293,7 @@ export function createSeed(now: Date = new Date()): DState {
     jobRuns: {},
     mfaSetup: null,
     resetTokens: [],
+    invitations: [],
   };
 
   const walletOf = (resellerId: string | null) => (resellerId ? `w-${resellerId}` : "w-house");
@@ -916,9 +918,13 @@ export function createSeed(now: Date = new Date()): DState {
     audit("u-r1", "assistant.disabled", "user", "u-ruwan", "Assistant Ruwan Dissanayake disabled", "r1", at(-15, 11, 5), [{ field: "Status", before: "Active", after: "Disabled" }]),
     audit("u-r1", "esim.credentials_viewed", "esim", v.id, "PIN and PUK shown", "r1", at(-2, 14, 12)),
     audit("u-admin", "reseller.status_changed", "reseller", "r6", "Reseller suspended", "r6", at(-30, 16, 40), [{ field: "Status", before: "Active", after: "Suspended" }]),
-    audit("u-admin", "user.created", "user", "u-finance", "Staff user Dilini Fernando created (Finance)", null, s.users.find((u) => u.id === "u-finance")!.createdAt),
+    audit("u-admin", "user.created", "user", "u-finance", "Staff user Dilini Fernando created (Finance); invitation sent to dilini@company.example", null, s.users.find((u) => u.id === "u-finance")!.createdAt),
   );
   s.audit.push(...entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+
+  // Dilini's invitation (sent when her account was made)
+  const dilini = s.users.find((u) => u.id === "u-finance")!;
+  s.invitations.push({ token: "inv-u-finance-welcome", userId: dilini.id, sentAt: dilini.createdAt, expiresAt: new Date(Date.parse(dilini.createdAt) + 72 * 3600000).toISOString() });
 
   // set-up dates for authenticator apps: a few days after each account was created
   for (const u of s.users) if (u.mfaEnrolled) u.mfaEnrolledAt = new Date(Date.parse(u.createdAt) + 3 * 86400000).toISOString();

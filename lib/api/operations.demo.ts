@@ -313,8 +313,10 @@ export const demoOperations = {
   listAlerts: (f: AlertFilters = {}) =>
     read((): Alert[] => {
       const c = authorize("alerts");
+      // resellers and assistants: alerts on their own eSIMs only (decided 2026-11-23)
+      const own = c.tenant ? null : new Set(c.s.esims.filter((e) => e.resellerId === c.resellerId).map((e) => e.id));
       return c.s.alerts
-        .filter((a) => inScope(c, a.resellerId))
+        .filter((a) => (own ? !!a.esimId && own.has(a.esimId) : true))
         .filter((a) => !f.status || (f.status === "active" ? a.status !== "resolved" : a.status === f.status))
         .filter((a) => (!f.type || a.type === f.type) && (!c.tenant || !f.resellerId || a.resellerId === f.resellerId))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -423,9 +425,10 @@ export const demoOperations = {
         limits: { dailySaleLimit: s.settings.dailySaleLimit, salesToday: s.salesToday.count, saleCap: s.settings.saleCap, capUsed: s.salesToday.capUsed },
         jobs: supplierJobs(s),
         priceList: { version: v.version, effectiveFrom: v.effectiveFrom, syncedAt: priceListSyncedAt(s), rises: v.changes.filter((x) => x.newCost > x.oldCost).length, falls: v.changes.filter((x) => x.newCost < x.oldCost).length },
+        // the backend's design: /webhooks/yesim/<tenant>/<secret>/…; the secret is never shown in the demo
         webhooks: [
-          { label: "eSIM events (install, status)", path: "/api/v1/webhooks/yesim/esim-events" },
-          { label: "Usage reports", path: "/api/v1/webhooks/yesim/usage-reports" },
+          { label: "Usage reports", path: "/webhooks/yesim/t1/••••••••/usage", secretMasked: true },
+          { label: "eSIM status changes", path: "/webhooks/yesim/t1/••••••••/esim-status", secretMasked: true },
         ],
         events: supplierEvents(s),
         balance: { reported: bal.reported, reportedAt: bal.reportedAt, implied: bal.implied, difference: bal.difference, tolerance: bal.tolerance, houseWallet: round2(house.balance) },

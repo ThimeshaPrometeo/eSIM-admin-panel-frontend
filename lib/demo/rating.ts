@@ -4,7 +4,10 @@
  *
  *   price per MB = Yesim €/MB × (1 + markup) × (1 − discount)
  *
- * with the Yesim price, markup and discount in force on that day. Charges,
+ * with the Yesim price in force that day and the markup and discount in force
+ * at the moment the data was used: a change applies from the moment it is
+ * saved, so a day with a change is split there (the demo spreads a day's data
+ * evenly over the day; today's runs up to when the demo data was made). Charges,
  * holds, the ledger, statements, the dashboard and the profit report are all
  * built from these lines, so every page agrees to the cent. A package's charge
  * for a day is the sum of its network lines, rounded to cents once.
@@ -72,29 +75,93 @@ export function costAt(s: DState, networkId: string, date: string): number | nul
   return cost;
 }
 
-export function markupAt(s: DState, resellerId: string, date: string): number {
+const ms = (iso: string) => Date.parse(iso);
+
+/** Markup % in force at a moment (ms); before the first entry, the starting markup. */
+export function markupAtTime(s: DState, resellerId: string, t: number): number {
   let m: number | null = null;
+  let mAt = -Infinity;
   let first: number | null = null;
+  let firstAt = Infinity;
   for (const h of s.markupHistory) {
     if (h.resellerId !== resellerId) continue;
-    first ??= h.markupPercent;
-    if (h.effectiveFrom <= date) m = h.markupPercent;
+    const at = ms(h.effectiveAt);
+    if (at < firstAt) {
+      firstAt = at;
+      first = h.markupPercent;
+    }
+    if (at <= t && at >= mAt) {
+      mAt = at;
+      m = h.markupPercent;
+    }
   }
-  // before the first entry (usage on the sign-up day itself), the starting markup
   return m ?? first ?? s.resellers.find((r) => r.id === resellerId)?.markupPercent ?? s.settings.defaultMarkupPercent;
 }
 
-/** The retail markup for direct sales on a day (history kept under the id "house"). */
-export function retailAt(s: DState, date: string): number {
+/** The retail markup for direct sales at a moment (history kept under the id "house"). */
+export function retailAtTime(s: DState, t: number): number {
   let m: number | null = null;
-  for (const h of s.markupHistory) if (h.resellerId === "house" && h.effectiveFrom <= date) m = h.markupPercent;
+  let mAt = -Infinity;
+  for (const h of s.markupHistory)
+    if (h.resellerId === "house" && ms(h.effectiveAt) <= t && ms(h.effectiveAt) >= mAt) {
+      mAt = ms(h.effectiveAt);
+      m = h.markupPercent;
+    }
   return m ?? s.settings.retailMarkupPercent;
 }
 
-/** The most specific discount in force on a day (reseller + plan over reseller only). */
-export function discountAt(s: DState, resellerId: string, planId: string | null, date: string): number {
-  const live = s.discounts.filter((d) => d.resellerId === resellerId && d.effectiveFrom <= date && (!d.endedOn || date < d.endedOn));
+/** The most specific discount in force at a moment (reseller + plan over reseller only). */
+export function discountAtTime(s: DState, resellerId: string, planId: string | null, t: number): number {
+  const live = s.discounts.filter((d) => d.resellerId === resellerId && ms(d.effectiveAt) <= t && (!d.endedAt || t < ms(d.endedAt)));
   return ((planId ? live.find((d) => d.planId === planId) : undefined) ?? live.find((d) => d.planId === null))?.percent ?? 0;
+}
+
+/** A day's window in ms (Colombo): midnight to midnight, or to when the demo data was made for today. */
+export function dayWindow(s: DState, date: string): [number, number] {
+  const start = ms(`${date}T00:00:00+05:30`);
+  const end = start + 86400000;
+  return [start, date === s.seededOn ? Math.max(start + 60000, Math.min(end, ms(s.seededAt))) : end];
+}
+
+/** Markup at the end of a day (convenience for reports and tests). */
+export function markupAt(s: DState, resellerId: string, date: string) {
+  return markupAtTime(s, resellerId, dayWindow(s, date)[1] - 1);
+}
+export function discountAt(s: DState, resellerId: string, planId: string | null, date: string) {
+  return discountAtTime(s, resellerId, planId, dayWindow(s, date)[1] - 1);
+}
+
+type Segment = { share: number; markup: number; discount: number };
+/** A day's rate periods for one buyer: split where a markup, retail markup or discount change was saved. */
+function segments(s: DState, owner: string | null, planId: string, date: string): Segment[] {
+  const [start, end] = dayWindow(s, date);
+  const cuts = new Set<number>();
+  const within = (iso: string | null) => {
+    if (!iso) return;
+    const t = ms(iso);
+    if (t > start && t < end) cuts.add(t);
+  };
+  for (const h of s.markupHistory) if (h.resellerId === (owner ?? "house")) within(h.effectiveAt);
+  if (owner)
+    for (const d of s.discounts)
+      if (d.resellerId === owner) {
+        within(d.effectiveAt);
+        within(d.endedAt);
+      }
+  const points = [start, ...[...cuts].sort((a, b) => a - b), end];
+  const out: Segment[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const t = points[i]!;
+    const seg = {
+      share: (points[i + 1]! - t) / (end - start),
+      markup: owner === null ? retailAtTime(s, t) : markupAtTime(s, owner, t),
+      discount: owner === null ? 0 : discountAtTime(s, owner, planId, t),
+    };
+    const last = out[out.length - 1];
+    if (last && last.markup === seg.markup && last.discount === seg.discount) last.share += seg.share;
+    else out.push(seg);
+  }
+  return out;
 }
 
 /** Estimated until the nightly report: the last two days, and late report days. */
@@ -134,35 +201,36 @@ export function packageDayLines(s: DState, p: DPackage, dayIndex: number, owner:
   const parts: [string, number][] = share > 0 ? [[p.networkId, 1 - share], [p.altNetworkId!, share]] : [[p.networkId, 1]];
   const estimated = isEstimated(s, owner, date);
   const version = versionAt(s, date).version;
-  return parts.map(([networkId, f]) => {
-    const mb = mbDay * f;
+  const direct = owner === null;
+  const segs = segments(s, owner, p.planId, date);
+  return parts.flatMap(([networkId, f]) => {
     const cost = costAt(s, networkId, date) ?? 0;
-    const direct = owner === null;
-    const markup = direct ? retailAt(s, date) : markupAt(s, owner, date);
-    const discount = direct ? 0 : discountAt(s, owner, p.planId, date);
-    const resellerPrice = cost * (1 + markup / 100) * (1 - discount / 100);
-    const pricePerMb = direct ? cost : resellerPrice;
-    return {
-      date,
-      packageId: p.id,
-      esimId: p.esimId,
-      planId: p.planId,
-      resellerId: owner,
-      networkId,
-      iso2: NETWORK_BY_ID.get(networkId)?.iso2 ?? "--",
-      mb,
-      costPerMb: cost,
-      markupPercent: markup,
-      discountPercent: discount,
-      pricePerMb,
-      cost: mb * cost,
-      amount: mb * pricePerMb,
-      revenue: mb * resellerPrice,
-      markupAmount: mb * cost * (markup / 100),
-      discountAmount: mb * cost * (1 + markup / 100) * (discount / 100),
-      estimated,
-      version,
-    };
+    return segs.map((seg) => {
+      const mb = mbDay * f * seg.share;
+      const resellerPrice = cost * (1 + seg.markup / 100) * (1 - seg.discount / 100);
+      const pricePerMb = direct ? cost : resellerPrice;
+      return {
+        date,
+        packageId: p.id,
+        esimId: p.esimId,
+        planId: p.planId,
+        resellerId: owner,
+        networkId,
+        iso2: NETWORK_BY_ID.get(networkId)?.iso2 ?? "--",
+        mb,
+        costPerMb: cost,
+        markupPercent: seg.markup,
+        discountPercent: seg.discount,
+        pricePerMb,
+        cost: mb * cost,
+        amount: mb * pricePerMb,
+        revenue: mb * resellerPrice,
+        markupAmount: mb * cost * (seg.markup / 100),
+        discountAmount: mb * cost * (1 + seg.markup / 100) * (seg.discount / 100),
+        estimated,
+        version,
+      };
+    });
   });
 }
 

@@ -262,7 +262,7 @@ access-denied page. Buttons that change data are hidden when the user only has `
 |---|---|
 | Overview | Dashboard |
 | Sales | Sell eSIM, My plans, Coverage, Price list |
-| eSIM management | My eSIMs, Orders, Usage |
+| eSIM management | My eSIMs, Orders, Usage, Alerts (view only) |
 | Customer management | Customers |
 | Finance | Wallet, Transactions, Invoices |
 | Team management | Assistants |
@@ -283,7 +283,9 @@ available actions adapt to the role.
 |---|---|---|
 | `/` | public | Sign in (8.31) |
 | `/login/2fa` | public, after password | 2FA step (8.31) |
-| `/login/change-password` | signed in, forced | First-login password change (8.31) |
+| `/login/change-password` | signed in, forced | Password change when flagged (8.31) |
+| `/invite` | public, `?token=` | Accept an invitation: set a password, then 2FA (8.24, 8.31) |
+| `/login/setup-2fa` | signed in | 2FA set-up prompt (8.31) |
 | `/forgot-password`, `/reset-password` | public | Password recovery |
 | `/esim/dashboard` | dashboard | 8.1 |
 | `/esim/esims`, `/esim/esims/[id]` | esims | 8.2, 8.3 |
@@ -552,7 +554,8 @@ Generate an idempotency key per attempt and reuse it on retry; the confirm butto
 - **Rules** (admin/staff manage): usage threshold % (e.g. 80, 100) with action Notify or Auto-suspend.
 - **Alert inbox:** usage thresholds, low stock, low wallet, house wallet low, orders being verified, usage on
   a network with no price, late usage report, daily sale limit reached. Open/resolved. Resellers and
-  assistants see alerts for their own eSIMs only.
+  assistants see alerts for their own eSIMs only, read only, in their own Alerts tab (decided 2026-11-23);
+  they never edit rules.
 
 ### 8.10 Plans (admin/staff)
 
@@ -595,7 +598,7 @@ Generate an idempotency key per attempt and reuse it on retry; the confirm butto
 - Detail tabs: Overview (stats, usage chart), eSIMs, Customers, Wallet and ledger, Discounts, Assistants,
   Documents, Audit trail.
 - Actions: create reseller (company, contact, first user, markup from the settings default; created only in
-  our platform, nothing is created at Yesim), edit, suspend,
+  our platform, nothing is created at Yesim; the first user gets an invitation, see 8.24), edit, suspend,
   **change markup (admins only, audit-logged, applies from save)**, top up wallet.
 - Resellers never see the supplier's cost, any markup % (their own included) or other resellers' prices.
 
@@ -606,7 +609,8 @@ Generate an idempotency key per attempt and reuse it on retry; the confirm butto
 
 ### 8.17 Assistants (admin view) / Team (reseller manage)
 
-- Resellers: list assistants (name, username, status, e.g. "6 of 14 areas enabled"), create, edit, disable.
+- Resellers: list assistants (name, username, status, e.g. "6 of 14 areas enabled"), create (the assistant
+  gets an invitation, see 8.24), edit, disable.
 - **Permission matrix:** grouped by the reseller navigation sections; per tab **View** and **Manage**
   switches (`-` where not applicable: Dashboard and Usage are view only, Sell eSIM is action only); a
   section switch toggles the whole section; Manage on turns View on, View off turns Manage off; toggles
@@ -656,10 +660,17 @@ Generate an idempotency key per attempt and reuse it on retry; the confirm butto
 
 ### 8.24 Users (admin/staff)
 
-- All accounts: name, username, email, role, reseller, staff role, status (active, disabled, locked), 2FA
-  status, last sign-in.
+- All accounts: name, username, email, role, reseller, staff role, status (invited, active, disabled,
+  locked), 2FA status, last sign-in.
 - Actions: create staff user, disable/enable, unlock, **reset 2FA** (reason required), **change username
-  (admins only)**.
+  (admins only)**, resend invitation.
+- **Invitations (decided 2026-11-23):** nobody chooses another person's password. Creating any user (staff,
+  a reseller's first user, an assistant) sends an invitation link, valid 72 hours, to set a password and
+  then set up 2FA. Until accepted the account shows "Invited" and can't sign in; the invitation can be sent
+  again (the old link stops working). Demo mode shows "Invitation sent" and lets the presenter open the
+  invitation screen.
+- **Reset 2FA (decided):** removes every second factor (authenticator app, recovery codes and passkeys);
+  the user sets them up again at next sign-in. Reason required; audit-logged.
 
 ### 8.25 Staff roles (admin)
 
@@ -682,7 +693,9 @@ Generate an idempotency key per attempt and reuse it on retry; the confirm butto
   limit and total cap.
 - Last runs of catalogue sync, price list sync, usage meter (every 15 minutes), nightly re-pricing, funding
   queue and order reconcile; "Sync now" for catalogue and price list.
-- Webhook URLs (copy) and the latest notifications received.
+- Webhook URLs (copy) and the latest notifications received. URLs follow the backend's design,
+  `/webhooks/yesim/<tenant>/<secret>/usage` and `/webhooks/yesim/<tenant>/<secret>/esim-status`; the secret
+  is masked (demo mode shows the masked form only).
 - Supplier balance vs house wallet (link to reconciliation).
 
 ### 8.28 Audit log (admin/staff)
@@ -707,7 +720,9 @@ Generate an idempotency key per attempt and reuse it on retry; the confirm butto
 
 - Username + password, then (when 2FA is set up) a 6-digit code or a recovery code, then the workspace. A
   "Use a passkey" option.
-- Forced password change on first sign-in. A 2FA set-up prompt for every account (required from go-live).
+- New accounts start from an invitation link (8.24): set a password, then set up 2FA. A 2FA set-up prompt for
+  every account without a second factor (required from go-live). The forced password change remains for
+  accounts an administrator flags.
 - Lockout message after 10 failed attempts (15 minutes).
 - The 3D globe hero with the fluid shader background (section 7.5).
 
@@ -717,6 +732,11 @@ The client must see how Yesim's price list becomes reseller prices, charges and 
 every page comes from one formula, applied per network with the rates in force at the time:
 
 **reseller price per MB = Yesim €/MB × (1 + markup) × (1 − discount)**
+
+**When changes take effect (decided 2026-11-23):** markup and discount changes apply from the moment they
+are saved. All usage priced after the save uses the new values, including plans already running; usage
+before it keeps the earlier values. Existing holds are not resized (the hold-exhaustion rule covers any
+shortfall). The Yesim price applies from its version's effective date.
 
 Profit per MB = reseller price − Yesim €/MB. Margin % = profit ÷ reseller price. Direct sales use the retail
 markup and no discount. Resellers never see Yesim cost, markup or anyone else's price; they see their own
@@ -737,7 +757,7 @@ price and their own charges.
   lowest-margin resellers; reconciliation of the Yesim balance with our records; CSV and PDF (watermarked).
 - **Price and markup history:** Yesim price list versions with effective dates and a "what changed" view
   (networks whose price rose or fell, by how much, and the impact on each reseller's price); per-reseller
-  markup history (old, new, who, when, reason).
+  markup history (old, new, who, when, reason, and "effective from <date time>").
 - **Invoices and statements** (8.22): monthly statements per reseller built from per-MB usage charges per
   plan per day, top-up receipts, direct-sale invoices; sequential numbers; PDF with the watermark.
 - **Settings** (8.26), pricing and billing: default reseller markup, retail markup, price-spread threshold,

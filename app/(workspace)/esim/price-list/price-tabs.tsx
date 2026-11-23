@@ -168,7 +168,7 @@ export function HistoryTab() {
     { id: "when", header: "Changed", cell: (m) => <span className="text-fg-2" title={formatDateTime(m.changedAt)}>{formatDate(m.changedAt)}</span>, sortValue: (m) => m.changedAt, hideable: false },
     { id: "reseller", header: "Reseller", cell: (m) => m.resellerName, sortValue: (m) => m.resellerName },
     { id: "change", header: "Markup", cell: (m) => (m.previousPercent === null ? <span>{m.markupPercent}% <span className="text-fg-3">(starting)</span></span> : <span className="font-medium">{m.previousPercent}% → {m.markupPercent}%</span>) },
-    { id: "from", header: "Applies from", cell: (m) => formatDate(m.effectiveFrom), sortValue: (m) => m.effectiveFrom },
+    { id: "from", header: "Effective from", cell: (m) => formatDateTime(m.effectiveAt), sortValue: (m) => m.effectiveAt },
     { id: "who", header: "By", cell: (m) => m.changedBy },
     { id: "reason", header: "Reason", cell: (m) => <span className="text-fg-2">{m.reason}</span>, className: "whitespace-normal min-w-48" },
   ];
@@ -227,7 +227,7 @@ export function HistoryTab() {
         </FitScroll>
       ) : (
         <>
-          <p className="text-small text-fg-2">Every reseller&apos;s markup over time. A change applies to usage rated from the next day; charges already made keep the markup of their day.</p>
+          <p className="text-small text-fg-2">Every reseller&apos;s markup over time. A change prices all usage from the moment it&apos;s saved, including plans already running; usage before it keeps the earlier markup.</p>
           <DataTable rows={markups.data} loading={markups.loading} columns={markupCols} rowKey={(m) => m.id} defaultSort={{ id: "when", desc: true }} caption="Markup changes" />
         </>
       )}

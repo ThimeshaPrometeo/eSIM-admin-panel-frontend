@@ -19,6 +19,8 @@ export class ApiError extends Error {
 const MESSAGES: Record<string, string> = {
   UNAUTHENTICATED: "Your session has ended. Sign in again.",
   INVALID_CREDENTIALS: "That username or password isn't right. After 10 failed attempts the account locks for 15 minutes.",
+  INVITE_PENDING: "This account hasn't been set up yet. Use the invitation link we emailed you, or ask your administrator to send it again.",
+  INVITE_EXPIRED: "This invitation has expired or was already used. Ask your administrator to send a new one.",
   RESET_LINK_EXPIRED: "This reset link has expired or was already used. Ask for a new one.",
   ACCOUNT_LOCKED: "This account is locked after 10 failed attempts. Try again in 15 minutes.",
   ACCOUNT_DISABLED: "This account is disabled. Ask your administrator.",

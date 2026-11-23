@@ -388,6 +388,8 @@ export type Assistant = {
   username: string;
   email: string;
   status: "active" | "disabled";
+  /** Invited and hasn't set a password yet. */
+  invited: boolean;
   grants: Grants;
   lastSignInAt: string | null;
   createdAt: string;
@@ -593,7 +595,8 @@ export type MarkupChange = {
   id: string;
   resellerId: string;
   resellerName: string;
-  effectiveFrom: string;
+  /** ISO time from which usage is priced with it (the moment it was saved). */
+  effectiveAt: string;
   markupPercent: number;
   previousPercent: number | null;
   changedAt: string;
@@ -748,7 +751,8 @@ export type SupplierStatus = {
   limits: { dailySaleLimit: number; salesToday: number; saleCap: number; capUsed: number };
   jobs: SupplierJob[];
   priceList: { version: number; effectiveFrom: string; syncedAt: string; rises: number; falls: number };
-  webhooks: { label: string; path: string }[];
+  /** Paths per the backend's design; `secretMasked` = the secret part is hidden (always in demo mode). */
+  webhooks: { label: string; path: string; secretMasked: boolean }[];
   events: SupplierEvent[];
   balance: { reported: number; reportedAt: string; implied: number; difference: number; tolerance: number; houseWallet: number };
 };
@@ -776,9 +780,14 @@ export type UserAccount = {
   mfaApp: boolean;
   passkeys: number;
   mustChangePassword: boolean;
+  /** A pending invitation (hasn't set a password yet). */
+  invite: { sentAt: string; expiresAt: string; expired: boolean } | null;
   lastSignInAt: string | null;
   createdAt: string;
 };
+
+/** "Invitation sent": where, until when; `demoLink` only in demo mode (no email is sent). */
+export type Invitation = { sentTo: string; expiresAt: string; demoLink: string | null };
 
 export type StaffRole = { id: string; name: string; grants: import("./permission-matrix").Grants; members: { id: string; fullName: string }[] };
 

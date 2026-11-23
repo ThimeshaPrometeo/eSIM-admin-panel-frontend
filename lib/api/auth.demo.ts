@@ -28,6 +28,7 @@ export const demoAuth = {
       const u = s.users.find((x) => x.username === key || x.email.toLowerCase() === key) ?? s.users.find((x) => x.id === "u-admin")!;
       if (!input.password) throw new ApiError(401, "INVALID_CREDENTIALS");
       if (u.status !== "active") throw new ApiError(401, "ACCOUNT_DISABLED");
+      if (u.invitePending) throw new ApiError(401, "INVITE_PENDING");
       if (u.locked && (!u.lockedUntil || u.lockedUntil > nowIso())) throw new ApiError(401, "ACCOUNT_LOCKED");
       if (u.locked) {
         u.locked = false;
@@ -73,7 +74,8 @@ export const demoAuth = {
       const key = input.identifier.trim().toLowerCase();
       if (!key) throw new ApiError(400, "IDENTIFIER_REQUIRED", "Enter your username or email.");
       const u = s.users.find((x) => x.username === key || x.email.toLowerCase() === key);
-      if (!u || u.status !== "active") return { sent: true, demoLink: null };
+      // unknown, disabled or still invited (they use their invitation): the same answer, no link
+      if (!u || u.status !== "active" || u.invitePending) return { sent: true, demoLink: null };
       const token = `demo-${u.id}-${++s.seq}`;
       s.resetTokens = [...s.resetTokens.filter((t) => t.userId !== u.id), { token, userId: u.id, expiresAt: new Date(Date.now() + 30 * 60000).toISOString() }];
       return { sent: true, demoLink: `/reset-password?token=${encodeURIComponent(token)}` };
@@ -96,6 +98,28 @@ export const demoAuth = {
       u.lockedUntil = null;
       s.resetTokens = s.resetTokens.filter((x) => x.token !== input.token);
       s.audit.unshift({ id: `a${++s.seq}`, actorId: u.id, action: "auth.password_reset", entityType: "user", entityId: u.id, summary: `${u.fullName} set a new password with a reset link`, resellerId: u.resellerId, createdAt: nowIso(), ip: demoIp(u.id), changes: null });
+    }),
+  /** An invitation link: who it's for, or why it can't be used. */
+  checkInvitation: (token: string) =>
+    read((): { state: "valid" | "expired" | "invalid"; fullName: string | null; username: string | null } => {
+      const s = db();
+      const i = s.invitations.find((x) => x.token === token);
+      const u = i ? s.users.find((x) => x.id === i.userId) : undefined;
+      if (!i || !u || !u.invitePending || u.status !== "active") return { state: "invalid", fullName: null, username: null };
+      return { state: i.expiresAt > nowIso() ? "valid" : "expired", fullName: u.fullName, username: u.username };
+    }),
+  /** Accepts an invitation: sets the password and signs in; the 2FA set-up comes next. */
+  acceptInvitation: (input: { token: string; newPassword: string }) =>
+    write((): Me => {
+      const s = db();
+      const i = s.invitations.find((x) => x.token === input.token);
+      const u = i ? s.users.find((x) => x.id === i.userId) : undefined;
+      if (!i || !u || !u.invitePending || i.expiresAt <= nowIso()) throw new ApiError(400, "INVITE_EXPIRED");
+      if (input.newPassword.length < 10) throw new ApiError(400, "PASSWORD_TOO_SHORT");
+      u.invitePending = false;
+      s.invitations = s.invitations.filter((x) => x.userId !== u.id);
+      s.audit.unshift({ id: `a${++s.seq}`, actorId: u.id, action: "user.invitation_accepted", entityType: "user", entityId: u.id, summary: `${u.fullName} accepted the invitation and set a password`, resellerId: u.resellerId, createdAt: nowIso(), ip: demoIp(u.id), changes: null });
+      return finish(u.id);
     }),
   switchDemoRole: (role: Role) => write(() => finish(DEMO_ROLE_USERS[role])),
   resetDemo: async () => {

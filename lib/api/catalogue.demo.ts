@@ -8,11 +8,10 @@ import { CATALOGUE, NETWORK_BY_ID, ZONE_BY_ID, zoneNetworks } from "@/lib/demo/c
 import type { DPlan, DState } from "@/lib/demo/model";
 import { buyerPricePerMb, discountFor, holdFor, markupFor, planPerMbRange, pricePerMb, range, retailPricePerMb, zoneUsable, type Buyer } from "@/lib/demo/pricing";
 import { read, write } from "@/lib/demo/run";
-import { audit, authorize, requireRole, type Caller } from "@/lib/demo/session";
+import { audit, authorize, nowIso, requireRole, type Caller } from "@/lib/demo/session";
 import { isCountry, isPriced, type Network } from "@/lib/platform/coverage";
 import { money } from "@/lib/platform/money";
 import { priceListSyncedAt } from "@/lib/demo/supplier";
-import { addDays } from "@/lib/platform/dates";
 import { BYTES } from "@/lib/platform/units";
 import type {
   CatalogueItem,
@@ -150,13 +149,8 @@ export type ResellerPlanInput = { planId: string; name: string; description: str
 export type DiscountInput = { resellerId: string; planId: string | null; percent: number };
 
 
-/** Changes apply to usage rated from now on: the first day after the demo's last rated day. */
-export function nextRatingDay(c: Caller) {
-  return addDays(c.s.seededOn, 1);
-}
-
 function newDiscount(c: Caller, resellerId: string, planId: string | null, percent: number): DState["discounts"][number] {
-  return { id: `d${++c.s.seq}`, resellerId, planId, percent, status: "active", createdAt: new Date().toISOString(), effectiveFrom: nextRatingDay(c), endedOn: null, createdBy: c.u.id };
+  return { id: `d${++c.s.seq}`, resellerId, planId, percent, status: "active", createdAt: nowIso(), effectiveAt: nowIso(), endedAt: null, createdBy: c.u.id };
 }
 
 export const demoCatalogue = {
@@ -400,7 +394,7 @@ export const demoCatalogue = {
         }))
         .sort((a, b) => a.resellerName.localeCompare(b.resellerName) || (a.planName ?? "").localeCompare(b.planName ?? ""));
     }),
-  // Discount changes apply to usage rated from now on (the next rating day); history is kept.
+  // Discount changes apply to usage from the moment they're saved; history is kept.
   createDiscount: (input: DiscountInput) =>
     write(() => {
       const c = authorize("discounts", "manage");
@@ -418,7 +412,7 @@ export const demoCatalogue = {
       if (!d) throw new ApiError(404, "NOT_FOUND");
       audit(c, "discount.updated", "discount", d.id, `Discount changed from ${d.percent}% to ${input.percent}%`, d.resellerId);
       d.status = "inactive";
-      d.endedOn = nextRatingDay(c);
+      d.endedAt = nowIso();
       c.s.discounts.push(newDiscount(c, d.resellerId, d.planId, input.percent));
     }),
   deleteDiscount: (id: string) =>
@@ -428,7 +422,7 @@ export const demoCatalogue = {
       const d = c.s.discounts.find((x) => x.id === id && x.status === "active");
       if (!d) throw new ApiError(404, "NOT_FOUND");
       d.status = "inactive";
-      d.endedOn = nextRatingDay(c);
+      d.endedAt = nowIso();
       audit(c, "discount.removed", "discount", d.id, `Discount ${d.percent}% removed`, d.resellerId);
     }),
   /**

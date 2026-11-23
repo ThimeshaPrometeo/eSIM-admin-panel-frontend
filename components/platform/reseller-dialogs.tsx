@@ -9,6 +9,7 @@ import { Field } from "@/components/ui/label";
 import { useAction } from "@/hooks/use-action";
 import { usePermission } from "@/hooks/use-permission";
 import { peopleApi } from "@/lib/api/people";
+import { invitationToast } from "@/lib/platform/invitation-toast";
 import { formatMoney, formatPerGb } from "@/lib/platform/money";
 import type { Reseller } from "@/lib/platform/types";
 
@@ -17,7 +18,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /**
  * Create a reseller (spec 8.15): company, contact, first user, markup (admin
  * only; staff get the default). Created only in our platform; the first user
- * sets their password at first sign-in.
+ * gets an invitation to set a password, then two-factor.
  */
 export function CreateResellerForm({ defaultMarkup = 25, onDone }: { defaultMarkup?: number; onDone: (r?: Reseller) => void }) {
   const id = useId();
@@ -36,7 +37,7 @@ export function CreateResellerForm({ defaultMarkup = 25, onDone }: { defaultMark
     <>
       <DialogHeader>
         <DialogTitle>Create reseller</DialogTitle>
-        <DialogDescription>The reseller exists only in this platform; nothing is created at the supplier. Their first user signs in and sets a password.</DialogDescription>
+        <DialogDescription>The reseller exists only in this platform; nothing is created at the supplier. Their first user gets an invitation (valid 72 hours) to set a password and then two-factor.</DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id={`${id}-co`} label="Company">
@@ -69,11 +70,11 @@ export function CreateResellerForm({ defaultMarkup = 25, onDone }: { defaultMark
         <Button
           disabled={!valid || pending}
           onClick={async () => {
-            const r = await run(() => peopleApi.createReseller({ companyName: company, contactName: contact, email, phone, username, markupPercent: admin ? Number(markup) : null }), {
-              success: (x) => `${x.companyName} created`,
-              description: `Their first user, ${username}, sets a password at first sign-in.`,
-            });
-            if (r.ok) onDone(r.result);
+            const r = await run(() => peopleApi.createReseller({ companyName: company, contactName: contact, email, phone, username, markupPercent: admin ? Number(markup) : null }));
+            if (r.ok) {
+              invitationToast(r.result.invitation, `${r.result.companyName} created · invitation sent to ${r.result.invitation.sentTo}`);
+              onDone(r.result);
+            }
           }}
         >
           Create reseller
@@ -142,7 +143,7 @@ export function MarkupForm({ reseller, onDone }: { reseller: Reseller; onDone: (
       <DialogHeader>
         <DialogTitle>Change markup</DialogTitle>
         <DialogDescription>
-          {reseller.companyName} pays the supplier price plus this markup, less any discount. The new price shows on the price list straight away and rates usage from tomorrow, including plans already running. Charges already made keep the markup of their day. The reseller never sees the markup.
+          {reseller.companyName} pays the supplier price plus this markup, less any discount. It applies from the moment you save: all usage after that is priced with it, including plans already running. Usage before it keeps the earlier markup, and running holds aren&apos;t resized (if usage outgrows a hold, the hold-exhaustion rule applies). The reseller never sees the markup.
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -169,7 +170,7 @@ export function MarkupForm({ reseller, onDone }: { reseller: Reseller; onDone: (
         <Button
           disabled={!changed || reason.trim().length < 3 || pending}
           onClick={async () => {
-            const r = await run(() => peopleApi.setResellerMarkup(reseller.id, { markupPercent: next, reason }), { success: "Markup changed", description: `${reseller.markupPercent}% → ${next}%, for usage from tomorrow.` });
+            const r = await run(() => peopleApi.setResellerMarkup(reseller.id, { markupPercent: next, reason }), { success: "Markup changed", description: `${reseller.markupPercent}% → ${next}%, effective now.` });
             if (r.ok) onDone();
           }}
         >

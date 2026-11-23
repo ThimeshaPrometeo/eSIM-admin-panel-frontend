@@ -11,7 +11,8 @@ import { read, write } from "@/lib/demo/run";
 import { audit, authorize, caller, nowIso, requireRole, type Caller } from "@/lib/demo/session";
 import { clampToEnvelope, levelOf, STAFF_MATRIX, type Grants } from "@/lib/platform/permission-matrix";
 import { ROLE_ENVELOPES } from "@/lib/platform/permissions";
-import type { AuditRecord, MySecurity, Role, StaffRole, TotpSetup, UserAccount } from "@/lib/platform/types";
+import { pendingInvitation, sendInvitation } from "@/lib/demo/invite";
+import type { AuditRecord, Invitation, MySecurity, Role, StaffRole, TotpSetup, UserAccount } from "@/lib/platform/types";
 
 const USERNAME = /^[a-z0-9][a-z0-9._-]{2,31}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -42,9 +43,16 @@ function userView(s: DState, u: DUser): UserAccount {
     mfaApp: u.mfaEnrolled,
     passkeys: u.passkeys.length,
     mustChangePassword: u.mustChangePassword,
+    invite: inviteOf(s, u),
     lastSignInAt: u.lastSignInAt,
     createdAt: u.createdAt,
   };
+}
+
+function inviteOf(s: DState, u: DUser): UserAccount["invite"] {
+  if (!u.invitePending) return null;
+  const i = pendingInvitation(s, u.id);
+  return i ? { sentAt: i.sentAt, expiresAt: i.expiresAt, expired: i.expiresAt <= nowIso() } : { sentAt: u.createdAt, expiresAt: u.createdAt, expired: true };
 }
 
 function roleView(s: DState, r: DState["staffRoles"][number]): StaffRole {
@@ -120,9 +128,9 @@ export const demoAccounts = {
         .map((u) => userView(c.s, u))
         .sort((a, b) => a.fullName.localeCompare(b.fullName));
     }),
-  /** A new staff member: signs in with the temporary password (shown once), then sets their own and their 2FA. */
+  /** A new staff member gets an invitation (72 hours) to set a password, then 2FA. Nobody chooses it for them. */
   createStaffUser: (input: StaffUserInput) =>
-    write((): { user: UserAccount; temporaryPassword: string } => {
+    write((): { user: UserAccount; invitation: Invitation } => {
       const c = authorize("users", "manage");
       requireRole(c, "admin", "staff");
       const username = input.username.trim().toLowerCase();
@@ -147,15 +155,32 @@ export const demoAccounts = {
         mfaEnrolledAt: null,
         recoveryCodesLeft: 0,
         passkeys: [],
-        mustChangePassword: true,
+        mustChangePassword: false,
+        invitePending: true,
         lastSignInAt: null,
         createdAt: nowIso(),
       };
       c.s.users.push(u);
+      const invitation = sendInvitation(c.s, u);
       const role = c.s.staffRoles.find((r) => r.id === u.staffRoleId)!.name;
-      audit(c, "user.created", "user", u.id, `Staff user ${u.fullName} created (${role})`, null);
-      const temporaryPassword = `${randomFrom("ABCDEFGHJKLMNPQRSTUVWXYZ", 4, seedOf(c.s))}-${randomFrom("23456789abcdefghjkmnpqrstuvwxyz", 6, seedOf(c.s))}`;
-      return { user: userView(c.s, u), temporaryPassword };
+      audit(c, "user.created", "user", u.id, `Staff user ${u.fullName} created (${role}); invitation sent to ${u.email}`, null);
+      return { user: userView(c.s, u), invitation };
+    }),
+  /** Sends the invitation again (a new 72-hour link; the old one stops working). Admins and staff; resellers for their assistants. */
+  resendInvitation: (id: string) =>
+    write((): Invitation => {
+      const c = caller();
+      const u = c.s.users.find((x) => x.id === id);
+      if (!u) throw new ApiError(404, "NOT_FOUND");
+      const tenant = c.me.role === "admin" || c.me.role === "staff";
+      if (tenant) {
+        authorize("users", "manage");
+        if (u.role === "admin" && c.me.role !== "admin") throw new ApiError(403, "ADMIN_ACCOUNT");
+      } else if (!(c.me.role === "reseller" && u.role === "assistant" && u.resellerId === c.resellerId)) throw new ApiError(404, "NOT_FOUND");
+      if (!u.invitePending) throw new ApiError(409, "ALREADY_ACCEPTED", "They've already set their password.");
+      const invitation = sendInvitation(c.s, u);
+      audit(c, "user.invitation_resent", "user", u.id, `Invitation sent again to ${u.email}`, u.resellerId);
+      return invitation;
     }),
   setUserStatus: (id: string, status: "active" | "disabled", reason: string) =>
     write((): UserAccount => {

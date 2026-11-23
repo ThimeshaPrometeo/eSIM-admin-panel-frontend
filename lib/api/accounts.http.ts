@@ -1,11 +1,12 @@
 import { apiFetch } from "./client";
 import type { AccountsApi } from "./accounts.demo";
-import type { AuditRecord, MySecurity, Page, StaffRole, TotpSetup, UserAccount } from "@/lib/platform/types";
+import type { AuditRecord, Invitation, MySecurity, Page, StaffRole, TotpSetup, UserAccount } from "@/lib/platform/types";
 
 /** Users, staff roles, audit log, profile and security; gaps are in backend-backlog.md (BB-26 to BB-29). */
 export const httpAccounts: AccountsApi = {
   listUsers: (f = {}) => apiFetch<Page<UserAccount>>("/users", { query: { q: f.q, role: f.role, state: f.state, pageSize: 100 } }).then((p) => p.data),
-  createStaffUser: (input) => apiFetch<{ user: UserAccount; temporaryPassword: string }>("/users", { method: "POST", body: { ...input, role: "staff" } }),
+  createStaffUser: (input) => apiFetch<{ user: UserAccount; invitation: Invitation }>("/users", { method: "POST", body: { ...input, role: "staff" } }),
+  resendInvitation: (id) => apiFetch<Invitation>(`/users/${id}/invitation`, { method: "POST" }),
   setUserStatus: (id, status, reason) => apiFetch<UserAccount>(`/users/${id}/status`, { method: "POST", body: { status, reason } }),
   unlockUser: (id) => apiFetch<UserAccount>(`/users/${id}/unlock`, { method: "POST" }),
   resetUserMfa: (id, reason) => apiFetch<UserAccount>(`/users/${id}/mfa/reset`, { method: "POST", body: { reason } }),

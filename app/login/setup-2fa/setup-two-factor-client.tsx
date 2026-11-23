@@ -19,7 +19,10 @@ import { nextPath, SIGN_IN_DATA } from "../../sign-in-client";
 export function SetupTwoFactorClient() {
   const { status, me, reloadMe } = usePlatform();
   const router = useRouter();
-  const next = nextPath(useSearchParams().get("next"));
+  const params = useSearchParams();
+  const next = nextPath(params.get("next"));
+  // after accepting an invitation two-factor is part of setting up the account: no "Remind me next time"
+  const required = params.get("invite") === "1";
   const [codes, setCodes] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,10 +63,14 @@ export function SetupTwoFactorClient() {
             toast.success("Two-factor authentication is on");
             router.replace(next);
           }}
-          onSkip={() => {
-            if (me) skipTwoFactor(me.id);
-            router.replace(next);
-          }}
+          onSkip={
+            required
+              ? undefined
+              : () => {
+                  if (me) skipTwoFactor(me.id);
+                  router.replace(next);
+                }
+          }
         />
       }
     />
