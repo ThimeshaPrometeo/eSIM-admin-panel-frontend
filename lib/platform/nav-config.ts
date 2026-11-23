@@ -49,9 +49,9 @@ export const TENANT_NAV: NavSection[] = [
       tab("esims", "All eSIMs", "/esim/esims", ["esims"], true),
       tab("sell", "Sell eSIM", "/esim/sell", ["sell_esim"], true),
       tab("orders", "Orders", "/esim/orders", ORDERS, true),
-      tab("usage", "Usage", "/esim/usage", ["usage"], false),
-      tab("inventory", "Inventory", "/esim/inventory", ["inventory"], false),
-      tab("alerts", "Alerts and rules", "/esim/alerts", ["alerts"], false),
+      tab("usage", "Usage", "/esim/usage", ["usage"], true),
+      tab("inventory", "Inventory", "/esim/inventory", ["inventory"], true),
+      tab("alerts", "Alerts and rules", "/esim/alerts", ["alerts"], true),
     ],
   },
   {
@@ -73,7 +73,7 @@ export const TENANT_NAV: NavSection[] = [
     icon: Building2,
     tabs: [
       tab("resellers", "Resellers", "/esim/resellers", ["resellers"], true),
-      tab("customers", "Customers", "/esim/customers", ["customers"], false),
+      tab("customers", "Customers", "/esim/customers", ["customers"], true),
       tab("assistants", "Assistants", "/esim/assistants", ["assistants"], true),
     ],
   },
@@ -107,7 +107,7 @@ export const TENANT_NAV: NavSection[] = [
     icon: Server,
     tabs: [
       tab("settings", "Settings", "/esim/settings", ["settings"], true),
-      tab("yesim", "Yesim connection", "/esim/yesim", ["yesim_connection"], false),
+      tab("yesim", "Yesim connection", "/esim/yesim", ["yesim_connection"], true),
       tab("audit-log", "Audit log", "/esim/audit-log", ["audit_log"], false),
     ],
   },
@@ -135,10 +135,12 @@ export const RESELLER_NAV: NavSection[] = [
     tabs: [
       tab("esims", "My eSIMs", "/esim/esims", ["esims"], true),
       tab("orders", "Orders", "/esim/orders", ORDERS, true),
-      tab("usage", "Usage", "/esim/usage", ["usage"], false),
+      tab("usage", "Usage", "/esim/usage", ["usage"], true),
+      // spec 8.9: resellers and assistants see alerts for their own eSIMs (view only)
+      tab("alerts", "Alerts", "/esim/alerts", ["alerts"], true),
     ],
   },
-  { id: "customers", label: "Customer management", short: "Customers", icon: Contact, tabs: [tab("customers", "Customers", "/esim/customers", ["customers"], false)] },
+  { id: "customers", label: "Customer management", short: "Customers", icon: Contact, tabs: [tab("customers", "Customers", "/esim/customers", ["customers"], true)] },
   {
     id: "finance",
     label: "Finance",

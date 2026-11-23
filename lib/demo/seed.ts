@@ -5,13 +5,14 @@
  * charges follow the pricing rules in ./pricing.
  */
 import { isPriced, type Network } from "@/lib/platform/coverage";
-import { addDays, dateInZone, daysBetween, DEFAULT_TIME_ZONE } from "@/lib/platform/dates";
+import { addDays, dateInZone, daysBetween, DEFAULT_TIME_ZONE, formatDate } from "@/lib/platform/dates";
 import type { Grants } from "@/lib/platform/permission-matrix";
 import type { InstallStatus } from "@/lib/platform/status";
 import { BYTES } from "@/lib/platform/units";
 import { CATALOGUE, zoneNetworks } from "./catalogue";
 import { forEachPackageDay, packageCharges } from "./rating";
-import type { DAudit, DEsim, DHold, DLedger, DNotification, DOrder, DPackage, DPlan, DState, DTopup, DUsage, DUser } from "./model";
+import { available } from "./derive";
+import type { DAlert, DAudit, DEsim, DHold, DLedger, DNotification, DOrder, DPackage, DPlan, DState, DTopup, DUsage, DUser } from "./model";
 import { SCHEMA_VERSION } from "./model";
 import { buyerPricePerMb, holdFor, round2, type Buyer } from "./pricing";
 import { createRng, luhn, type Rng } from "./rng";
@@ -266,6 +267,13 @@ export function createSeed(now: Date = new Date()): DState {
     priceVersions,
     markupHistory,
     supplier: { deposits: [], reportedBalance: 0, reportedAt: now.toISOString(), tolerance: 5 },
+    alerts: [],
+    alertRules: [
+      { id: "rule-80", thresholdPercent: 80, action: "notify", enabled: true, createdAt: at(-200, 10), createdBy: "u-admin", updatedAt: at(-200, 10) },
+      { id: "rule-100", thresholdPercent: 100, action: "auto_suspend", enabled: true, createdAt: at(-200, 10, 5), createdBy: "u-admin", updatedAt: at(-90, 15, 30) },
+    ],
+    stockDeliveries: [],
+    jobRuns: {},
   };
 
   const walletOf = (resellerId: string | null) => (resellerId ? `w-${resellerId}` : "w-house");
@@ -519,10 +527,15 @@ export function createSeed(now: Date = new Date()): DState {
     e.status = "SUSPENDED";
     e.suspendedBy = "admin";
   });
-  take(1, shuffled).forEach((e) => {
-    e.status = "SUSPENDED";
-    e.suspendedBy = "rule";
-  });
+  {
+    // the 100% rule suspends an eSIM whose plan really used all its data
+    const i = Math.max(0, shuffled.findIndex((e) => pkgsOf(e.id).some((p) => p.state === "depleted")));
+    const [e] = shuffled.splice(i, 1);
+    if (e) {
+      e.status = "SUSPENDED";
+      e.suspendedBy = "rule";
+    }
+  }
   const directPool = esimsOf(null).filter((e) => pkgsOf(e.id).every((p) => p.state !== "active" && p.state !== "pending_activation"));
   take(2, directPool).forEach((e) => {
     e.status = "END_OF_LIFE";
@@ -733,6 +746,90 @@ export function createSeed(now: Date = new Date()): DState {
     { id: id("t"), resellerId: "r1", walletId: "w-r1", amount: 100, paymentReference: "", note: "Wrong amount", status: "cancelled", requestedBy: "u-r1", createdAt: at(-18, 12), decidedAt: at(-18, 12, 20), decidedBy: "u-r1", decisionNote: null, receiptNumber: null, outstandingPaid: null, plansFunded: null },
   );
 
+  // -------------------------------------------------- stock deliveries
+  // Free stock today is settings.freeStock; going back, add the eSIMs sold since and take away deliveries.
+  // Two deliveries, sized so stock dipped just below the warning before each one arrived.
+  {
+    const soldOn = new Map<string, number>();
+    for (const e of s.esims) {
+      const d = dateInZone(new Date(e.createdAt));
+      soldOn.set(d, (soldOn.get(d) ?? 0) + 1);
+    }
+    const soldBetween = (from: string, to: string) => [...soldOn].reduce((a, [d, n]) => a + (d > from && d <= to ? n : 0), 0);
+    const d1 = addDays(today, -36);
+    const d2 = addDays(today, -64);
+    // free at the end of a day = today's free + sold after that day − deliveries after it
+    const freeEnd1 = settings.freeStock + soldBetween(d1, today);
+    // the day before the delivery ends at 17 free (below the warning at 20)
+    const size1 = Math.max(10, freeEnd1 + (soldOn.get(d1) ?? 0) - 17);
+    const freeEnd2 = freeEnd1 - size1 + soldBetween(d2, d1);
+    // the earlier delivery came before stock reached the warning (no alert)
+    const size2 = Math.max(10, freeEnd2 + (soldOn.get(d2) ?? 0) - 22);
+    s.stockDeliveries.push({ id: "sd-1", date: d2, count: size2, reference: "STOCK-2026-03" }, { id: "sd-2", date: d1, count: size1, reference: "STOCK-2026-04" });
+  }
+
+  // -------------------------------------------------------------- alerts
+  {
+    const usedPct = (p: DPackage) => ((s.usage[p.id]?.mb ?? []).reduce((a, x) => a + x, 0) * BYTES.MB) / p.limitBytes;
+    const label = (e: DEsim) => `eSIM …${e.iccid.slice(-6)}`;
+    const alert = (a: Omit<DAlert, "id" | "updatedAt" | "updatedBy" | "ruleId" | "esimId" | "resellerId" | "href"> & Partial<DAlert>): DAlert => ({
+      id: id("al"),
+      ruleId: null,
+      esimId: null,
+      resellerId: null,
+      href: null,
+      updatedAt: a.createdAt,
+      updatedBy: null,
+      ...a,
+    });
+    const ago = (min: number) => new Date(now.getTime() - min * 60000).toISOString();
+    // usage at 80% and 100%, from the real usage of running plans
+    const running = s.packages.filter((p) => p.state === "active" || p.state === "depleted");
+    const at80 = running.filter((p) => p.state === "active" && usedPct(p) >= 0.8 && usedPct(p) < 1).slice(0, 4);
+    at80.forEach((p, i) => {
+      const e = s.esims.find((x) => x.id === p.esimId)!;
+      s.alerts.push(alert({ type: "usage_threshold", severity: "warning", title: `Data use at 80%: ${label(e)}`, detail: `${p.name} has used ${Math.floor(usedPct(p) * 100)}% of its data.`, resellerId: e.resellerId, esimId: e.id, href: `/esim/esims/${e.id}`, ruleId: "rule-80", status: i === 0 ? "open" : i === 1 ? "acknowledged" : "open", createdAt: ago(5 + i * 190) }));
+    });
+    const ruled = s.esims.find((e) => e.suspendedBy === "rule");
+    if (ruled) {
+      const p = [...pkgsOf(ruled.id)].sort((a, b) => usedPct(b) - usedPct(a))[0]!;
+      s.alerts.push(alert({ type: "usage_threshold", severity: "danger", title: `Data use at 100%: ${label(ruled)} suspended`, detail: `${p.name} used ${Math.min(100, Math.floor(usedPct(p) * 100))}% of its data; the 100% rule suspended the eSIM.`, resellerId: ruled.resellerId, esimId: ruled.id, href: `/esim/esims/${ruled.id}`, ruleId: "rule-100", status: "open", createdAt: ago(60 * 26) }));
+    }
+    // wallets below their warning, from the real balances
+    for (const w of s.wallets.filter((x) => x.kind === "reseller")) {
+      const r = s.resellers.find((x) => x.id === w.resellerId)!;
+      if (r.status !== "active" || available(s, w) >= w.lowThreshold) continue;
+      s.alerts.push(alert({ type: "low_wallet", severity: "warning", title: `Low wallet: ${r.companyName}`, detail: `Available €${available(s, w).toFixed(2)}, below the €${w.lowThreshold.toFixed(2)} warning.`, resellerId: r.id, href: r.id === "r5" ? `/esim/wallets/${w.id}` : `/esim/wallets/${w.id}`, status: "open", createdAt: ago(60 * 9 + s.alerts.length * 37) }));
+    }
+    const r5 = s.wallets.find((w) => w.id === "w-r5")!;
+    if (r5.outstanding > 0)
+      s.alerts.push(alert({ type: "outstanding_balance", severity: "danger", title: "Outstanding amount: Atlas Mobile Partners", detail: `€${r5.outstanding.toFixed(2)} of usage wasn't covered by the hold. New plans are refused until it's paid.`, resellerId: "r5", href: "/esim/wallets/w-r5", status: "open", createdAt: ago(60 * 30) }));
+    s.alerts.push(
+      alert({ type: "order_needs_check", severity: "warning", title: "An order is being verified", detail: "The supplier didn't confirm an Italy 3 GB sale for Blue Horizon Tours. Don't sell again until it's checked.", resellerId: "r2", href: "/esim/orders/o-verify", status: "open", createdAt: ago(50) }),
+      alert({ type: "usage_rating_late", severity: "warning", title: "Usage report is late: Blue Horizon Tours", detail: `Usage for ${formatDate(`${addDays(today, -3)}T12:00:00Z`)} is still estimated; the supplier's nightly report hasn't arrived.`, resellerId: "r2", href: "/esim/transactions", status: "acknowledged", createdAt: ago(60 * 20), updatedAt: ago(60 * 18), updatedBy: "u-finance" }),
+      alert({ type: "unpriced_network_usage", severity: "warning", title: "Usage on a network with no price", detail: "A phone used a network that has no Yesim price. That usage is held, not charged, until the price list has a price for it.", href: "/esim/coverage", status: "resolved", createdAt: at(-12, 4, 10), updatedAt: at(-11, 9, 30), updatedBy: "u-admin" }),
+      alert({ type: "plan_held_by_daily_limit", severity: "danger", title: "Daily sale limit reached", detail: `All ${settings.dailySaleLimit} sales allowed by the supplier for the day were used; further sales were refused until midnight.`, status: "resolved", createdAt: at(-9, 17, 42), updatedAt: at(-8, 0, 1) }),
+      alert({ type: "low_stock", severity: "warning", title: "Low stock", detail: `17 free eSIMs left, below the warning at ${settings.lowStockThreshold}. Resolved by delivery STOCK-2026-04.`, href: "/esim/inventory", status: "resolved", createdAt: at(-37, 11, 5), updatedAt: at(-36, 10, 0) }),
+      alert({ type: "price_list_changed", severity: "info", title: "Yesim price list changed (version 14)", detail: "8 networks changed price: 4 up, 4 down.", href: "/esim/price-list?tab=history", status: "acknowledged", createdAt: at(-32, 2, 12), updatedAt: at(-32, 9, 40), updatedBy: "u-admin" }),
+    );
+    // house wallet: the last time it went below the warning, and the deposit that lifted it
+    const house = s.ledger.filter((l) => l.walletId === "w-house" && l.type !== "hold");
+    let low: DLedger | null = null;
+    for (const l of house) {
+      if (!low && l.balanceAfter < settings.houseWalletLowThreshold) low = l;
+      else if (low && l.type === "deposit" && l.balanceAfter >= settings.houseWalletLowThreshold) {
+        const lowAt = low;
+        const last = s.alerts.find((a) => a.type === "house_wallet_low");
+        const a = alert({ type: "house_wallet_low", severity: "warning", title: "House wallet low", detail: `The house wallet went below €${settings.houseWalletLowThreshold.toFixed(2)} (€${lowAt.balanceAfter.toFixed(2)}). Resolved by deposit ${l.reference}.`, href: "/esim/wallets/w-house", status: "resolved", createdAt: lowAt.createdAt, updatedAt: l.createdAt, updatedBy: "u-finance" });
+        if (last) Object.assign(last, a);
+        else s.alerts.push(a);
+        low = null;
+      }
+    }
+    if (low) s.alerts.push(alert({ type: "house_wallet_low", severity: "warning", title: "House wallet low", detail: `Balance €${low.balanceAfter.toFixed(2)}, below the €${settings.houseWalletLowThreshold.toFixed(2)} warning.`, href: "/esim/wallets/w-house", status: "open", createdAt: low.createdAt }));
+    s.alerts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
   // -------------------------------------------------- notifications, audit
   const notify = (userId: string, title: string, body: string, href: string | null, offsetMin: number, read = false): DNotification => ({
     id: id("n"),
@@ -750,7 +847,7 @@ export function createSeed(now: Date = new Date()): DState {
     notify("u-admin", "Low wallet: Nomad Connect", "Available balance is below €50.00.", "/esim/wallets/w-r3", 60 * 9),
     notify("u-admin", "Usage report is late", "Blue Horizon Tours: usage for 3 days ago is still estimated.", "/esim/transactions", 60 * 20, true),
     notify("u-admin", "Outstanding amount: Atlas Mobile Partners", `€${outstandingR5.toFixed(2)} of usage wasn't covered. New plans are refused until it's paid.`, "/esim/wallets/w-r5", 60 * 30, true),
-    notify("u-admin", "Low stock", "23 free eSIMs left (threshold 20).", null, 60 * 50, true),
+    notify("u-admin", "Stock running low", "23 free eSIMs left; the warning is at 20.", "/esim/inventory", 60 * 50, true),
     notify("u-support", "An order is being verified", "The supplier didn't confirm an Italy 3 GB sale for Blue Horizon Tours.", "/esim/orders/o-verify", 50),
     notify("u-support", "eSIM suspended by a rule", "Data use reached 100% on an eSIM with auto-suspend.", "/esim/esims", 60 * 26, true),
     notify("u-r1", "2 plans are waiting for funds", "Top up your wallet to start them. They're funded oldest first.", "/esim/wallet", 60 * 20),

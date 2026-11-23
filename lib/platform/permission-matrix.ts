@@ -132,6 +132,7 @@ export const RESELLER_MATRIX: MatrixSection[] = [
     rows: [
       { module: "esims", label: "My eSIMs", kind: "both" },
       { module: "usage", label: "Usage", kind: "view" },
+      { module: "alerts", label: "Alerts", kind: "view" },
     ],
   },
   { id: "customers", label: "Customer management", rows: [{ module: "customers", label: "Customers", kind: "both" }] },

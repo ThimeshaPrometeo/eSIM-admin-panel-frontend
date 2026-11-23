@@ -78,7 +78,7 @@ describe("permission matrix rules", () => {
   });
 
   it("counts enabled areas", () => {
-    expect(enabledCount({ dashboard: "view", esims: "manage" }, RESELLER_MATRIX)).toEqual({ enabled: 2, total: 12 });
+    expect(enabledCount({ dashboard: "view", esims: "manage" }, RESELLER_MATRIX)).toEqual({ enabled: 2, total: 13 });
   });
 
   it("has no Team management or Orders toggle for assistants", () => {

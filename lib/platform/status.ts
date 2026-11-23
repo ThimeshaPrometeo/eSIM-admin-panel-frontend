@@ -98,3 +98,27 @@ export function usageTone(fraction: number): "normal" | "warning" | "danger" {
   if (fraction >= 0.8) return "warning";
   return "normal";
 }
+
+export type AlertStatusValue = "open" | "acknowledged" | "resolved";
+export const ALERT_STATUS: Record<AlertStatusValue, StatusInfo> = {
+  open: { label: "Open", tone: "warning" },
+  acknowledged: { label: "Acknowledged", tone: "info" },
+  resolved: { label: "Resolved", tone: "neutral" },
+};
+
+/** Alert types (spec 8.9; definitive list from the backend: BB-11). */
+export const ALERT_TYPE_LABEL: Record<
+  "usage_threshold" | "low_stock" | "low_wallet" | "house_wallet_low" | "order_needs_check" | "unpriced_network_usage" | "usage_rating_late" | "plan_held_by_daily_limit" | "outstanding_balance" | "price_list_changed",
+  string
+> = {
+  usage_threshold: "Usage threshold",
+  low_stock: "Low stock",
+  low_wallet: "Low wallet",
+  house_wallet_low: "House wallet low",
+  order_needs_check: "Order being verified",
+  unpriced_network_usage: "Network with no price",
+  usage_rating_late: "Late usage report",
+  plan_held_by_daily_limit: "Daily sale limit",
+  outstanding_balance: "Outstanding amount",
+  price_list_changed: "Price list changed",
+};

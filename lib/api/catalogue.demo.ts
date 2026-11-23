@@ -11,6 +11,7 @@ import { read, write } from "@/lib/demo/run";
 import { audit, authorize, requireRole, type Caller } from "@/lib/demo/session";
 import { isCountry, isPriced, type Network } from "@/lib/platform/coverage";
 import { money } from "@/lib/platform/money";
+import { priceListSyncedAt } from "@/lib/demo/supplier";
 import { addDays } from "@/lib/platform/dates";
 import { BYTES } from "@/lib/platform/units";
 import type {
@@ -148,7 +149,6 @@ export type PlanInput = { name: string; zoneId: string; dataBytes: number; valid
 export type ResellerPlanInput = { planId: string; name: string; description: string; sellingPrice: number };
 export type DiscountInput = { resellerId: string; planId: string | null; percent: number };
 
-const LAST_SYNC_MIN = 127;
 
 /** Changes apply to usage rated from now on: the first day after the demo's last rated day. */
 export function nextRatingDay(c: Caller) {
@@ -231,8 +231,8 @@ export const demoCatalogue = {
       }));
       return {
         rows: rows.sort((a, b) => a.country.localeCompare(b.country) || a.operator.localeCompare(b.operator)),
-        syncedAt: new Date(Date.now() - LAST_SYNC_MIN * 60000).toISOString(),
-        version: 14,
+        syncedAt: priceListSyncedAt(c.s),
+        version: c.s.priceVersions[c.s.priceVersions.length - 1]!.version,
         basis: c.tenant ? "cost" : "own",
         resellerName: pickR?.companyName ?? null,
       };
@@ -242,8 +242,10 @@ export const demoCatalogue = {
     write(() => {
       const c = authorize("price_lists", "manage");
       requireRole(c, "admin");
+      const at = new Date().toISOString();
+      c.s.jobRuns.price_list_sync = at;
       audit(c, "price_list.synced", "price_list", "current", "Price list sync: no changes", null);
-      return { status: "unchanged" as const, at: new Date().toISOString() };
+      return { status: "unchanged" as const, at };
     }),
 
   // ----------------------------------------------------------------- plans

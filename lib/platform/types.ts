@@ -639,3 +639,118 @@ export type TenantSettings = {
   taxWording: string;
   mfaRequired: boolean;
 };
+
+// ---------------------------------------------------------------- operations (spec 8.7–8.9, 8.16, 8.27)
+
+export type AlertType =
+  | "usage_threshold"
+  | "low_stock"
+  | "low_wallet"
+  | "house_wallet_low"
+  | "order_needs_check"
+  | "unpriced_network_usage"
+  | "usage_rating_late"
+  | "plan_held_by_daily_limit"
+  | "outstanding_balance"
+  | "price_list_changed";
+export type AlertStatus = "open" | "acknowledged" | "resolved";
+
+export type Alert = {
+  id: string;
+  type: AlertType;
+  severity: "info" | "warning" | "danger";
+  title: string;
+  detail: string;
+  resellerId: string | null;
+  resellerName: string | null;
+  esimId: string | null;
+  href: string | null;
+  /** The rule that raised it, e.g. "80% · notify". */
+  rule: string | null;
+  status: AlertStatus;
+  createdAt: string;
+  updatedAt: string;
+  updatedByName: string | null;
+};
+
+export type AlertRule = {
+  id: string;
+  thresholdPercent: number;
+  action: "notify" | "auto_suspend";
+  enabled: boolean;
+  createdAt: string;
+  createdByName: string;
+  updatedAt: string;
+  /** Alerts this rule raised in the last 30 days. */
+  raised30d: number;
+};
+
+export type UsageReportRow = {
+  esimId: string;
+  iccid: string;
+  customerName: string | null;
+  resellerName: string | null;
+  plans: string[];
+  /** Countries used, most data first (ISO2). */
+  countries: string[];
+  topNetwork: string | null;
+  bytes: number;
+  /** What the eSIM's owner was charged (resellers: their own cost). */
+  charge: number;
+  /** Admin/staff only. */
+  yesimCost: number | null;
+  estimated: boolean;
+};
+
+export type UsageReport = {
+  totals: { bytes: number; charge: number; estimatedCharge: number; esims: number; yesimCost: number | null };
+  series: { bucket: string; finalBytes: number; estimatedBytes: number }[];
+  byCountry: { iso2: string; country: string; bytes: number }[];
+  rows: UsageReportRow[];
+  options: { plans: { id: string; name: string }[]; countries: { iso2: string; name: string }[] };
+  /** Watermark usage-report PDFs (Settings). */
+  watermark: boolean;
+};
+
+export type Inventory = {
+  free: number;
+  assigned: number;
+  threshold: number;
+  series: { date: string; free: number; assigned: number }[];
+  deliveries: { date: string; count: number; reference: string }[];
+  /** New eSIMs in the last 30 days. */
+  sold30d: number;
+};
+
+export type SupplierJobId = "catalogue_sync" | "price_list_sync" | "usage_meter" | "nightly_reprice" | "funding_queue" | "order_reconcile";
+
+export type SupplierJob = {
+  id: SupplierJobId;
+  label: string;
+  schedule: string;
+  lastRunAt: string;
+  nextRunAt: string | null;
+  durationMs: number;
+  result: "ok" | "warning" | "failed";
+  message: string;
+  /** "Sync now" allowed (catalogue and price list). */
+  manual: boolean;
+};
+
+export type SupplierEvent = { id: string; at: string; type: string; esimId: string | null; iccid: string | null; detail: string; result: "processed" | "ignored" };
+
+export type SupplierStatus = {
+  status: "ok" | "degraded" | "down";
+  checkedAt: string;
+  account: { reseller: string; sponsor: string; networkProfile: string; writeMode: "read_only" | "enabled" };
+  limits: { dailySaleLimit: number; salesToday: number; saleCap: number; capUsed: number };
+  jobs: SupplierJob[];
+  priceList: { version: number; effectiveFrom: string; syncedAt: string; rises: number; falls: number };
+  webhooks: { label: string; path: string }[];
+  events: SupplierEvent[];
+  balance: { reported: number; reportedAt: string; implied: number; difference: number; tolerance: number; houseWallet: number };
+};
+
+export type CustomerDetail = Customer & {
+  esims: { id: string; iccid: string; status: import("./status").EsimStatus; suspendedBy: import("./status").SuspendedBy | null; planName: string | null; lastActivityAt: string | null }[];
+};

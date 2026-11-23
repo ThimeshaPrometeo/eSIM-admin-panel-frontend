@@ -96,7 +96,10 @@ describe("navigation and route guard", () => {
 
   it("decides direct URL access", () => {
     expect(routeAccess("admin", admin, "/esim/esims/42").kind).toBe("ok");
-    expect(routeAccess("admin", admin, "/esim/inventory").kind).toBe("coming_soon");
+    expect(routeAccess("admin", admin, "/esim/inventory").kind).toBe("ok");
+    expect(routeAccess("admin", admin, "/esim/audit-log").kind).toBe("coming_soon");
+    expect(routeAccess("reseller", reseller, "/esim/inventory").kind).toBe("denied");
+    expect(routeAccess("reseller", reseller, "/esim/alerts").kind).toBe("ok");
     expect(routeAccess("reseller", reseller, "/esim/resellers").kind).toBe("denied");
     expect(routeAccess("reseller", reseller, "/esim/wallets/w1").kind).toBe("denied"); // other role family
     expect(routeAccess("admin", admin, "/esim/wallet").kind).toBe("denied");

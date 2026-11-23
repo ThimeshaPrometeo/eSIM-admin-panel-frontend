@@ -117,13 +117,13 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Holds | waiting (in queue order), active, exhausted, ending, settled, released, cancelled |
 | Top-up requests | pending (reseller 4, reseller 1), approved (with receipts), rejected (with a note), cancelled |
 | Orders | ~150, incl. failed (hold released), one **Being verified** (`needs_check`), awaiting funds, cancelled |
-| Alerts | usage threshold 80% / 100%, low stock, low wallet, house wallet low, order needs check, unpriced network usage, late usage report, daily sale limit reached, outstanding balance, price list changed |
+| Alerts | Every type, built from the data: 80% on a plan really at 80–99%; 100% on the eSIM the rule suspended (its plan used all its data); low wallet for each active reseller below €50 available; outstanding amount (Atlas); order being verified; late report (Blue Horizon, 3 days ago); house wallet low (the last time the ledger went below €500, resolved by the deposit that lifted it); low stock (the day before delivery STOCK-2026-04, 17 free); daily sale limit and unpriced network (resolved); price list v14 (acknowledged) |
 | Alert rules | 80% notify, 100% auto-suspend (admin) |
 | Notifications | ~15 per demo user, some unread |
 | Audit log | ~200 entries incl. markup change, PIN/PUK reveals, PDF downloads, assistant disable |
-| Inventory | Free / assigned per day for 90 days; low-stock threshold 20, free stock currently 23 and trending down |
+| Inventory | Free = 23 today; going back, free = 23 + new eSIMs sold since − deliveries since. Two deliveries (STOCK-2026-03, STOCK-2026-04) sized so stock went below the warning (20) only once, the day the low-stock alert reports |
 | Documents | Monthly statements per reseller for 3 months, top-up receipts, direct-sale invoices; sequential numbers per type and year (e.g. `ST-2026-0007`) |
-| Yesim connection | Status OK, reseller B2B_ENIGMA, sponsor SP05, network profile SP05_YESEN01, writes shown as disabled (read only), daily sale limit 50 (12 used today), total cap 500 (183 used); job runs for each job |
+| Yesim connection | Status OK, reseller B2B_ENIGMA, sponsor SP05, network profile SP05_YESEN01, writes shown as disabled (read only), daily sale limit 50 (12 used today), total cap 500 (183 used); jobs derived from the clock (usage meter every 15 min, funding queue 5 min, order reconcile 10 min, nightly re-pricing 02:00, catalogue 03:00, price list every 6 h); "Sync now" records a run; latest notifications from recent eSIM activity; the balance check uses the same figures as Profit → Reconciliation |
 
 ### 5.1 Financial data (spec 8.32)
 

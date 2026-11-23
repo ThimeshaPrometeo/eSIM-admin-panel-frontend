@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { FitPage, FitScroll } from "@/components/platform/fit-page";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PricingSimulator } from "@/components/platform/pricing-simulator";
@@ -39,7 +40,8 @@ export function PriceListClient() {
   const { data, loading, error } = useResource(() => catalogueApi.getCurrentPriceList({ resellerId }), [resellerId]);
   const { run, pending } = useAction();
   const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
-  const [tab, setTab] = useState("prices");
+  const params = useSearchParams();
+  const [tab, setTab] = useState(() => (["breakdown", "simulator", "history"].includes(params.get("tab") ?? "") ? params.get("tab")! : "prices"));
 
   const zones = useMemo(() => [...new Set((data?.rows ?? []).flatMap((r) => r.zones))].sort(), [data]);
   const rows = useMemo(() => {

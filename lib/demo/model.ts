@@ -5,9 +5,9 @@
  */
 import type { Grants } from "@/lib/platform/permission-matrix";
 import type { EsimStatus, HoldStatus, InstallStatus, OrderStatus, SuspendedBy, TopupStatus } from "@/lib/platform/status";
-import type { LedgerType, Role } from "@/lib/platform/types";
+import type { AlertType, LedgerType, Role } from "@/lib/platform/types";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 10;
 
 export type DUser = {
   id: string;
@@ -227,6 +227,29 @@ export type DAudit = {
 /** Daily usage per package: MB per day, index 0 = `start`. */
 export type DUsage = { start: string; mb: number[] };
 
+/** An alert (spec 8.9). Resellers and assistants see alerts with their reseller id only. */
+export type DAlert = {
+  id: string;
+  type: AlertType;
+  severity: "info" | "warning" | "danger";
+  title: string;
+  detail: string;
+  resellerId: string | null;
+  esimId: string | null;
+  href: string | null;
+  ruleId: string | null;
+  status: "open" | "acknowledged" | "resolved";
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+/** Usage threshold rule: at this % of a plan's data, notify or suspend the eSIM. */
+export type DAlertRule = { id: string; thresholdPercent: number; action: "notify" | "auto_suspend"; enabled: boolean; createdAt: string; createdBy: string; updatedAt: string };
+
+/** A delivery of free eSIMs into the supplier pool. */
+export type DStockDelivery = { id: string; date: string; count: number; reference: string };
+
 export type DSettings = {
   defaultMarkupPercent: number;
   retailMarkupPercent: number;
@@ -272,4 +295,9 @@ export type DState = {
   priceVersions: DPriceVersion[];
   markupHistory: DMarkupChange[];
   supplier: DSupplierAccount;
+  alerts: DAlert[];
+  alertRules: DAlertRule[];
+  stockDeliveries: DStockDelivery[];
+  /** Manual "Sync now" runs of supplier jobs (job id → ISO time); scheduled runs are derived from the clock. */
+  jobRuns: Record<string, string>;
 };

@@ -23,6 +23,7 @@ import { useResource } from "@/hooks/use-resource";
 import { catalogueApi } from "@/lib/api/catalogue";
 import { errorMessage, ApiError } from "@/lib/api/errors";
 import { esimsApi, type SimulatedOutcome } from "@/lib/api/esims";
+import { operationsApi } from "@/lib/api/operations";
 import { peopleApi } from "@/lib/api/people";
 import { countryFlag } from "@/lib/platform/coverage";
 import { formatDateTime } from "@/lib/platform/dates";
@@ -50,6 +51,14 @@ export function SellClient() {
   const [step, setStep] = useState(0);
   const [plan, setPlan] = useState<CatalogueItem | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  // `?customer=<id>` (from a customer's page) starts with that customer chosen
+  const presetId = params.get("customer");
+  const preset = useResource(() => operationsApi.getCustomer(presetId!), [presetId], !!presetId);
+  const [presetApplied, setPresetApplied] = useState(false);
+  if (!presetApplied && preset.data) {
+    setPresetApplied(true);
+    setCustomer(preset.data);
+  }
   const [activation, setActivation] = useState<ActivationInput>({ mode: "first_use" });
   const [retail, setRetail] = useState("");
   const [simulate, setSimulate] = useState<SimulatedOutcome>("normal");

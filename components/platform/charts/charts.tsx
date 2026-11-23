@@ -12,6 +12,7 @@ import {
   Line,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -414,6 +415,37 @@ export function WaterfallChart({ data, title = "From Yesim cost to profit", desc
               ))}
             </Bar>
           </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartFrame>
+  );
+}
+
+/** Free and assigned eSIMs per day, with the low-stock warning as a dashed line (spec 8.8). */
+export function StockChart({ data, threshold }: { data: { label: string; free: number; assigned: number }[]; threshold: number }) {
+  const id = cssId(useId());
+  return (
+    <ChartFrame
+      title="Stock over 90 days"
+      description={`Free eSIMs in the pool and eSIMs assigned; warning below ${threshold}`}
+      legend={[
+        { label: "Free", color: SERIES.accent },
+        { label: "Assigned", color: SERIES.primary },
+        { label: "Warning", color: SERIES.warning, dashed: true },
+      ]}
+    >
+      {({ animate, duration }) => (
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
+            <ChartDefs id={id} />
+            <CartesianGrid {...GRID} />
+            <XAxis dataKey="label" {...AXIS} minTickGap={28} />
+            <YAxis {...AXIS} width={48} tickFormatter={axisNum} allowDecimals={false} />
+            <Tooltip cursor={{ stroke: "var(--border-strong)" }} content={<GlassTooltip format={(v) => `${plain(v)} eSIMs`} />} />
+            <ReferenceLine y={threshold} stroke={SERIES.warning} strokeDasharray="5 4" strokeWidth={1.5} ifOverflow="extendDomain" />
+            <Area type="stepAfter" dataKey="free" name="Free" stroke={SERIES.accent} strokeWidth={2} fill={`url(#${id}-fill-accent)`} isAnimationActive={animate} animationDuration={duration} dot={false} />
+            <Line type="monotone" dataKey="assigned" name="Assigned" stroke={SERIES.primary} strokeWidth={2} dot={false} filter={`url(#${id}-glow)`} isAnimationActive={animate} animationDuration={duration} />
+          </ComposedChart>
         </ResponsiveContainer>
       )}
     </ChartFrame>

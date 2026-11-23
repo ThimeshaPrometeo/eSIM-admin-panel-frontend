@@ -28,9 +28,9 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | `/esim/sell` (`?esim=<id>` = add plan) | 8.5 | A S R As | `sell_esim:manage` | `listPlansCatalogue` (GET /plans/catalogue), `listResellerPlans`, `getPlanCountries`, `listCustomers`, `createCustomer`, `getWallet` / `getDashboardWallets`, `createEsimOrder` (POST /orders/esim, idempotent), `addPlanToEsim` (POST /esims/:id/plans, idempotent), `getEsim` | `SellStepper`, `PlanCard`, `PriceRange`, `HoldPreview`, `CustomerPicker`, `ActivationPicker`, `SellResult` (`EsimCard`) | yes |
 | `/esim/orders` | 8.6 | A S R As | `orders:view` → see Q-ORDERS (backend: `sell_esim` or `transactions` view) | `listOrders` | `OrdersView`, `DataTable` | yes |
 | `/esim/orders/[id]` | 8.6 | A S R As | same; resolve = A (backend), check = A/S | `getOrder`, `checkOrder`, `resolveOrder`, `cancelOrder` (waiting plans) | `OrderDetailView`, `ResolveOrderDialog` | yes (resolve, check, cancel waiting) |
-| `/esim/usage` | 8.7 | A S R As | `usage:view` | `getUsageDaily`, `getUsageByCountry`, `getUsageCharges`, `exportUsage` (csv/pdf) | `UsageView`, charts, `DataTable` | no |
-| `/esim/inventory` | 8.8 | A S | `inventory:view` | `getInventory`, `getInventoryHistory`, `syncInventory` | `InventoryView` | no |
-| `/esim/alerts` | 8.9 | A S R As | `alerts:view`; rules `alerts:manage` (A/S) | `listAlerts`, `updateAlert`, `listAlertRules`, `createAlertRule`, `updateAlertRule`, `deleteAlertRule` | `AlertsView`, `AlertRuleDialog` | no |
+| `/esim/usage` | 8.7 | A S R As | `usage:view` | `getUsageDaily`, `getUsageByCountry`, `getUsageCharges`, `exportUsage` (csv/pdf) | `UsageView`, charts, `DataTable` | yes (Phase 6) |
+| `/esim/inventory` | 8.8 | A S | `inventory:view` | `getInventory`, `getInventoryHistory`, `syncInventory` | `InventoryView` | yes (Phase 6) |
+| `/esim/alerts` | 8.9 | A S R As | `alerts:view`; rules `alerts:manage` (A/S) | `listAlerts`, `updateAlert`, `listAlertRules`, `createAlertRule`, `updateAlertRule`, `deleteAlertRule` | `AlertsView`, `AlertRuleDialog` | yes (Phase 6) |
 | `/esim/plans` | 8.10 | A S | `plans:view`; create/edit = A (backend `@Roles('admin')`, Q-STAFFWRITE) | `listPlans`, `createPlan`, `updatePlan`, `setPlanStatus`, `pricingPreview` (POST /plans/pricing-preview), `listZones` | `PlansView`, `PlanFormDialog` (live hold, spread warning, unpriced networks) | yes |
 | `/esim/plans/[id]` | 8.10 | A S | `plans:view` | `getPlan`, `getPlanPricingPreview`, `getZoneNetworks` | `PlanDetailView`, `NetworkBadges` | yes |
 | `/esim/my-plans` | 8.11 | R As (A/S read-only, Q-MYPLANS) | `reseller_plans:view`; edit `manage` | `listResellerPlans`, `createResellerPlan`, `updateResellerPlan`, `deleteResellerPlan`, `listPlansCatalogue` | `MyPlansView`, `ResellerPlanDialog` | yes |
@@ -39,20 +39,20 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | `/esim/discounts` | 8.14 | A S R As | `discounts:view`; create/edit = A | `listDiscounts`, `createDiscount`, `updateDiscount`, `deleteDiscount`, `pricingPreview` (GET /pricing/preview) | `DiscountsView`, `DiscountDialog` (live preview) | yes |
 | `/esim/resellers` | 8.15 | A S | `resellers:view`; create/edit/suspend `manage`; markup = A | `listResellers`, `createReseller`, `updateReseller`, `setResellerStatus`, `setResellerMarkup` | `ResellersView`, `reseller-dialogs` | yes |
 | `/esim/resellers/[id]` | 8.15 | A S | `resellers:view` | `getReseller`, `listEsims({resellerId})`, `listCustomers`, `getWallet`, `listTransactions`, `listDiscounts`, `listAssistants`, `listInvoices`, `listAuditLogs`, `getUsageDaily({resellerId})` | `ResellerDetailView` (tabs: Overview, eSIMs, Customers, Wallet and ledger, Discounts, Assistants, Documents, Audit trail), `TopUpWalletDialog` | yes (Documents and Audit trail tabs show demo rows) |
-| `/esim/customers` | 8.16 | A S R As | `customers:view`; edit `manage` | `listCustomers`, `createCustomer`, `updateCustomer`, `archiveCustomer` | `CustomersView`, `CustomerDialog` | nav only |
-| `/esim/customers/[id]` | 8.16 | A S R As | `customers:view` | `getCustomer` | `CustomerDetailView` | nav only |
+| `/esim/customers` | 8.16 | A S R As | `customers:view`; edit `manage` | `listCustomers`, `createCustomer`, `updateCustomer`, `archiveCustomer` | `CustomersView`, `CustomerDialog` | yes (Phase 6) |
+| `/esim/customers/[id]` | 8.16 | A S R As | `customers:view` | `getCustomer` | `CustomerDetailView` | yes (Phase 6) |
 | `/esim/assistants` | 8.17 | A S (`assistants:view`) · R (`team:manage`) | either module | `listAssistants`, `createAssistant`, `updateAssistant`, `setAssistantPermissions`, `setAssistantStatus`, `getPermissionModules` | `TeamView` (R), `AssistantsOverview` (A/S), `PermissionMatrix`, `assistant-dialogs` | yes |
 | `/esim/wallets` | 8.18 | A S | `wallets:view` | `listWallets` | `WalletsView` | yes |
 | `/esim/wallets/[id]` | 8.18 | A S | `wallets:view`; adjustment = A | `getWallet`, `listWalletHolds`, `listTransactions({walletId})`, `createWalletAdjustment` | `WalletDetailView`, `AdjustmentDialog` | yes |
 | `/esim/wallet` | 8.19 | R As | `wallets:view`; request = `topup_requests:manage` | `getWallet` (own), `listWalletHolds`, `listTopupRequests`, `createTopupRequest`, `cancelTopupRequest`, `downloadInvoicePdf` (receipt) | `WalletView`, `WalletSummary`, `HoldsTable`, `FundingQueue`, `TopupRequestDialog`, `HowBillingWorks` | yes |
 | `/esim/transactions` | 8.20 | A S R As | `transactions:view` | `listTransactions`, `exportTransactionsCsv` | `TransactionsView` | yes |
 | `/esim/topup-requests` | 8.21 | A S | `topup_requests:manage` (A/S) | `listTopupRequests`, `approveTopupRequest`, `rejectTopupRequest` | `TopupRequestsView`, `ApproveDialog`, `ReasonDialog` | yes |
-| `/esim/invoices` | 8.22 | A S R As | `invoices:view` | `listInvoices`, `downloadInvoicePdf` (watermarked) | `InvoicesView` | no |
-| `/esim/profit` | 8.23 | A S | `profit_reports:view` | `getProfitReport`, `getYesimCost`, `getReconciliation`, exports | `ProfitView` | no |
+| `/esim/invoices` | 8.22 | A S R As | `invoices:view` | `listInvoices`, `downloadInvoicePdf` (watermarked) | `InvoicesView` | yes (Phase 5–6) |
+| `/esim/profit` | 8.23 | A S | `profit_reports:view` | `getProfitReport`, `getYesimCost`, `getReconciliation`, exports | `ProfitView` | yes (Phase 5–6) |
 | `/esim/users` | 8.24 | A S | `users:view` | `listUsers`, `createUser`, `updateUser`, `setUserStatus`, `changeUsername` (A), `resetUserMfa` (A), `sendPasswordReset` | `UsersView` | no |
 | `/esim/staff-roles` | 8.25 | A S | `staff_roles:view` | `listStaffRoles`, `createStaffRole`, `setStaffRolePermissions`, `getPermissionModules` | `StaffRolesView`, `PermissionMatrix` | no |
-| `/esim/settings` | 8.26 | A S | `settings:view` | `getSettings`, `updateSettings` | `SettingsView` | no |
-| `/esim/yesim` | 8.27 | A S | `yesim_connection:view` | `getYesimConnection`, `listJobRuns`, `runJob` (A), `listYesimLogs` | `YesimConnectionView` | no |
+| `/esim/settings` | 8.26 | A S | `settings:view` | `getSettings`, `updateSettings` | `SettingsView` | yes (Phase 5–6) |
+| `/esim/yesim` | 8.27 | A S | `yesim_connection:view` | `getYesimConnection`, `listJobRuns`, `runJob` (A), `listYesimLogs` | `YesimConnectionView` | yes (Phase 6) |
 | `/esim/audit-log` | 8.28 | A S | `audit_log:view` | `listAuditLogs`, `getAuditLog` | `AuditLogView`, `DiffView` | no |
 
 ## 3. Everyone (inside `AppShell`)
@@ -87,7 +87,7 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 |---|---|
 | Overview | Dashboard → `/esim/dashboard` |
 | Sales | Sell eSIM → `/esim/sell` · My plans → `/esim/my-plans` · Coverage → `/esim/coverage` · Price list → `/esim/price-list` |
-| eSIM management | My eSIMs → `/esim/esims` · Orders → `/esim/orders` · Usage → `/esim/usage` |
+| eSIM management | My eSIMs → `/esim/esims` · Orders → `/esim/orders` · Usage → `/esim/usage` · Alerts → `/esim/alerts` (view only; Q-RESELLERALERTS) |
 | Customer management | Customers → `/esim/customers` |
 | Finance | Wallet → `/esim/wallet` · Transactions → `/esim/transactions` · Invoices → `/esim/invoices` |
 | Team management | Assistants → `/esim/assistants` (module `team`) |

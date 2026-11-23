@@ -12,6 +12,7 @@ import type { DState } from "@/lib/demo/model";
 import { discountFor } from "@/lib/demo/pricing";
 import { forEachPackageDay, round2, type RatedLine } from "@/lib/demo/rating";
 import { read, write } from "@/lib/demo/run";
+import { priceListSyncedAt, supplierBalance } from "@/lib/demo/supplier";
 import { audit, authorize, requireRole, type Caller } from "@/lib/demo/session";
 import { isCountry, isPriced } from "@/lib/platform/coverage";
 import { addDays, dateInZone, formatDate } from "@/lib/platform/dates";
@@ -151,7 +152,7 @@ export const demoFinance = {
       const v = c.s.priceVersions[c.s.priceVersions.length - 1]!;
       return {
         version: v.version,
-        syncedAt: new Date(Date.now() - 127 * 60000).toISOString(),
+        syncedAt: priceListSyncedAt(c.s),
         resellers: ids.map((id) => {
           const r = c.s.resellers.find((x) => x.id === id)!;
           return { id, name: r.companyName, markupPercent: r.markupPercent, discountPercent: discountFor(c.s, id, null) };
@@ -332,10 +333,7 @@ export const demoFinance = {
         [...m.entries()].map(([k, a]) => profitRow(k, label(k), a)).sort((a, b) => b.revenue - a.revenue);
 
       // reconciliation: all usage to date, not just the period
-      let costToDate = 0;
-      forEachPackageDay(s, (_p, _d, lines) => lines.forEach((l) => (costToDate += l.cost)));
-      const deposits = s.supplier.deposits.reduce((a, d) => a + d.amount, 0);
-      const implied = deposits - costToDate;
+      const bal = supplierBalance(s);
       return {
         totals: { revenue: round2(revenue), cost: round2(cost), profit: round2(round2(revenue) - round2(cost)), marginPercent: revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0, mb: mbTotal, estimatedRevenue: round2(est) },
         series: buckets.map((b) => {
@@ -352,13 +350,7 @@ export const demoFinance = {
         }),
         byPlan: rows(byP, (k) => planName(s, k)),
         reconciliation: {
-          deposits: round2(deposits),
-          costToDate: round2(costToDate),
-          implied: round2(implied),
-          reported: s.supplier.reportedBalance,
-          difference: round2(s.supplier.reportedBalance - implied),
-          tolerance: s.supplier.tolerance,
-          reportedAt: s.supplier.reportedAt,
+          ...bal,
           depositsList: s.supplier.deposits.map((d) => ({ date: d.date, amount: d.amount, reference: d.reference })),
         },
       };

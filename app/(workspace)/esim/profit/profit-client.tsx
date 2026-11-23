@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,8 @@ export function ProfitClient() {
   const [resellerId, setResellerId] = useState<string | null>(null);
   const resellers = useResource(() => peopleApi.listResellerOptions(), ["reseller-options"]);
   const { data } = useResource(() => financeApi.getProfitReport(period, { resellerId }), [period.from, period.to, period.granularity, resellerId]);
-  const [tab, setTab] = useState("overview");
+  const params = useSearchParams();
+  const [tab, setTab] = useState(() => (["breakdown", "reconciliation"].includes(params.get("tab") ?? "") ? params.get("tab")! : "overview"));
   const [by, setBy] = useState<By>("byReseller");
 
   const label = (b: string) => formatAxisDate(b.length === 4 ? `${b}-01-01` : b.length === 7 ? `${b}-01` : b, period.granularity);

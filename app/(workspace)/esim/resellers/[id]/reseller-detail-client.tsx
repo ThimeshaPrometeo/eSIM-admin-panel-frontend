@@ -248,6 +248,7 @@ function EsimsTab({ id }: { id: string }) {
 }
 
 function CustomersTab({ id }: { id: string }) {
+  const router = useRouter();
   const { data, loading, error } = useResource(() => peopleApi.listCustomers({ resellerId: id }), [id]);
   const columns: Column<Customer>[] = [
     { id: "name", header: "Name", cell: (c) => <span className="font-medium">{c.name}</span>, sortValue: (c) => c.name, hideable: false },
@@ -256,7 +257,7 @@ function CustomersTab({ id }: { id: string }) {
     { id: "esims", header: "eSIMs", align: "right", cell: (c) => c.esimCount, sortValue: (c) => c.esimCount },
     { id: "since", header: "Since", cell: (c) => formatDate(c.createdAt), sortValue: (c) => c.createdAt },
   ];
-  return <DataTable rows={data} loading={loading} error={error} columns={columns} rowKey={(c) => c.id} caption="Customers" empty={{ title: "No customers yet", description: "Customers are added when selling an eSIM." }} />;
+  return <DataTable rows={data} loading={loading} error={error} columns={columns} rowKey={(c) => c.id} onRowClick={(c) => router.push(`/esim/customers/${c.id}`)} caption="Customers" empty={{ title: "No customers yet", description: "Customers are added when selling an eSIM." }} />;
 }
 
 function WalletTab({ reseller }: { reseller: Reseller }) {

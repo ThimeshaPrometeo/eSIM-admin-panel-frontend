@@ -82,6 +82,9 @@ do some actions. **Answered: follow the backend** (hide the action for roles it 
 | Q-DAILYLIMIT | Demo daily sale limit and cap | Demo uses 50/day and a cap of 500 so the demo can't hit the real live-test values (3/15) by accident |
 | Q-ROUTE2FA | 2FA set-up prompt needs a screen | New route `/login/setup-2fa`, skippable until go-live |
 | Q-EUROZONE | No real "Europe" zone exists in Yesim data (only TEST_LZ, ENIGMA_LZ, Italy; the first two contain unpriced networks and can't be used for plans) | Demo synthesises "Europe 30", "Asia travel" and "Worldwide" zones from priced networks, marked as created by us (demo-data.md §2.2) |
+| Q-RESELLERALERTS | Spec 8.9 says resellers and assistants see alerts for their own eSIMs, but the reseller navigation (spec 5.4) has no Alerts tab | Added "Alerts" under eSIM management for resellers (view only) and an Alerts row in the assistant permission matrix (13 areas) |
+| Q-WEBHOOKS | Webhook URLs on the Yesim connection page | Proposed paths `/api/v1/webhooks/yesim/esim-events` and `/usage-reports` on our own origin (BB-25); confirm the real ones |
+| Q-ALERTTYPES2 | The ten alert types in spec 8.9 | UI uses the backend names from Q-ALERTTYPES (`unpriced_network_usage`, `usage_rating_late`, `plan_held_by_daily_limit`, …); `zone_unpriced_networks` and `plan_waiting_funds` get labels once the definitive list arrives (BB-11) |
 
 ## 5. Repository
 
