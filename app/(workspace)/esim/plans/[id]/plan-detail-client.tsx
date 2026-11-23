@@ -35,13 +35,14 @@ export function PlanDetailClient({ id }: { id: string }) {
   const examples = plan?.networks[0]?.examples.map((e) => e.resellerName) ?? [];
   const columns: Column<ZoneNetworkPrice>[] = [
     { id: "country", header: "Country", cell: (n) => <span className="flex items-center gap-2"><span>{countryFlag(n.iso2)}</span>{n.country}</span>, sortValue: (n) => n.country, hideable: false },
-    { id: "network", header: "Network", cell: (n) => n.operator, sortValue: (n) => n.operator },
+    { id: "network", header: "Network", cell: (n) => n.operator, sortValue: (n) => n.operator, className: "whitespace-normal min-w-36" },
     { id: "tech", header: "Technology", cell: (n) => <NetworkBadges lte={n.lte} fiveG={n.nr} volte={n.volte} /> },
     { id: "cost", header: "Supplier €/MB", align: "right", cell: (n) => (n.costPerMb === null ? <span className="text-danger">No price</span> : formatPerMb(n.costPerMb)), sortValue: (n) => n.costPerMb },
     ...examples.map((name, i) => ({
       id: `ex${i}`,
       header: `${name} €/GB`,
       align: "right" as const,
+      className: "whitespace-normal min-w-28",
       cell: (n: ZoneNetworkPrice) => formatPerGb(n.examples[i]?.pricePerMb),
       sortValue: (n: ZoneNetworkPrice) => n.examples[i]?.pricePerMb ?? null,
     })),

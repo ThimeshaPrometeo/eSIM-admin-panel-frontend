@@ -27,6 +27,23 @@ import { AXIS, ChartDefs, ChartFrame, GlassTooltip, GRID, SERIES } from "./chart
 type Fmt = (n: number) => string;
 const plain: Fmt = (n) => n.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 const eur: Fmt = (n) => `€${n.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+/** Axis ticks stay short so they never clip: 6,000 → 6k. */
+const axisNum: Fmt = (n) => (Math.abs(n) >= 1000 ? `${(n / 1000).toLocaleString("en-GB", { maximumFractionDigits: 1 })}k` : plain(n));
+const axisEur: Fmt = (n) => `€${axisNum(n)}`;
+
+/**
+ * Final and estimated series for a usage chart: the solid line has the final
+ * days, the dashed line the estimated days plus their neighbours, so the two
+ * join without overlapping (also when a late report leaves one day estimated
+ * in the middle of the period).
+ */
+export function usageSeries(points: { label: string; value: number; estimated: boolean }[]) {
+  return points.map((p, i) => ({
+    label: p.label,
+    final: p.estimated ? null : p.value,
+    estimated: p.estimated || points[i - 1]?.estimated || points[i + 1]?.estimated ? p.value : null,
+  }));
+}
 const cssId = (raw: string) => raw.replace(/[^a-zA-Z0-9_-]/g, "");
 
 /** Daily usage, area. The estimated tail (not final yet) is dashed. */
@@ -57,7 +74,7 @@ export function UsageAreaChart({
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
             <XAxis dataKey="label" {...AXIS} minTickGap={24} />
-            <YAxis {...AXIS} width={48} tickFormatter={(v) => `${plain(v)}`} />
+            <YAxis {...AXIS} width={48} tickFormatter={axisNum} />
             <Tooltip cursor={{ stroke: "var(--border-strong)" }} content={<GlassTooltip format={(v) => `${plain(v)} ${unit}`} />} />
             <Area
               type="monotone"
@@ -70,7 +87,7 @@ export function UsageAreaChart({
               isAnimationActive={animate}
               animationDuration={duration}
               animationEasing="ease-out"
-              connectNulls
+              connectNulls={false}
               dot={false}
               activeDot={{ r: 4, fill: "var(--primary)", stroke: "var(--bg)", strokeWidth: 2 }}
             />
@@ -85,7 +102,7 @@ export function UsageAreaChart({
               isAnimationActive={animate}
               animationDuration={duration}
               animationBegin={duration * 0.6}
-              connectNulls
+              connectNulls={false}
               dot={false}
               activeDot={{ r: 4, fill: "var(--warning)", stroke: "var(--bg)", strokeWidth: 2 }}
             />
@@ -107,7 +124,7 @@ export function MonthlyBarChart({ data, unit = "GB" }: { data: { label: string; 
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
             <XAxis dataKey="label" {...AXIS} />
-            <YAxis {...AXIS} width={48} />
+            <YAxis {...AXIS} width={48} tickFormatter={axisNum} />
             <Tooltip cursor={{ fill: "var(--surface-3)", opacity: 0.4 }} content={<GlassTooltip format={(v) => `${plain(v)} ${unit}`} />} />
             <Bar dataKey="value" name="Usage" fill={`url(#${id}-bar-primary)`} radius={[8, 8, 3, 3]} maxBarSize={36} isAnimationActive={animate} animationDuration={duration} />
           </BarChart>
@@ -118,8 +135,20 @@ export function MonthlyBarChart({ data, unit = "GB" }: { data: { label: string; 
 }
 
 /** eSIM status donut. */
-export function StatusDonut({ data }: { data: { label: string; value: number; tone: keyof typeof SERIES }[] }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
+/**
+ * eSIM status donut. The centre shows `total` (e.g. sold eSIMs) when given,
+ * so a stock slice doesn't change the headline count.
+ */
+export function StatusDonut({
+  data,
+  total: shownTotal,
+  totalLabel = "eSIMs",
+}: {
+  data: { label: string; value: number; tone: keyof typeof SERIES }[];
+  total?: number;
+  totalLabel?: string;
+}) {
+  const total = shownTotal ?? data.reduce((s, d) => s + d.value, 0);
   return (
     <ChartFrame title="eSIM status" legend={data.map((d) => ({ label: d.label, color: SERIES[d.tone] }))}>
       {({ animate, duration }) => (
@@ -148,7 +177,7 @@ export function StatusDonut({ data }: { data: { label: string; value: number; to
           <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
             <div>
               <p className="text-[28px] font-semibold leading-8 tabular">{plain(total)}</p>
-              <p className="text-small text-fg-2">eSIMs</p>
+              <p className="text-small text-fg-2">{totalLabel}</p>
             </div>
           </div>
         </div>
@@ -178,13 +207,17 @@ export function PlansSoldChart({ data }: { data: { label: string; value: number 
   );
 }
 
-/** Transactions over time: credits (Emerald) vs debits (Azure). */
+/**
+ * Transactions over time: credits (Emerald bars, left scale) vs debits
+ * (Azure line, right scale). Top-ups are large and occasional, usage charges
+ * small and daily; one scale would hide the debits.
+ */
 export function TransactionsChart({ data }: { data: { label: string; credits: number; debits: number }[] }) {
   const id = cssId(useId());
   return (
     <ChartFrame
       title="Transactions"
-      description="Credits vs debits, EUR"
+      description="Credits (left) vs debits (right), EUR"
       legend={[
         { label: "Credits", color: SERIES.accent },
         { label: "Debits", color: SERIES.primary },
@@ -192,15 +225,27 @@ export function TransactionsChart({ data }: { data: { label: string; credits: nu
     >
       {({ animate, duration }) => (
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 8, right: 4, left: -4, bottom: 0 }} barGap={4}>
+          <ComposedChart data={data} margin={{ top: 8, right: 0, left: -4, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
-            <XAxis dataKey="label" {...AXIS} />
-            <YAxis {...AXIS} width={56} tickFormatter={eur} />
+            <XAxis dataKey="label" {...AXIS} minTickGap={16} />
+            <YAxis yAxisId="credits" {...AXIS} width={52} tickFormatter={axisEur} />
+            <YAxis yAxisId="debits" orientation="right" {...AXIS} width={48} tickFormatter={axisEur} />
             <Tooltip cursor={{ fill: "var(--surface-3)", opacity: 0.4 }} content={<GlassTooltip format={eur} />} />
-            <Bar dataKey="credits" name="Credits" fill={`url(#${id}-bar-accent)`} radius={[6, 6, 2, 2]} maxBarSize={18} isAnimationActive={animate} animationDuration={duration} />
-            <Bar dataKey="debits" name="Debits" fill={`url(#${id}-bar-primary)`} radius={[6, 6, 2, 2]} maxBarSize={18} isAnimationActive={animate} animationDuration={duration} />
-          </BarChart>
+            <Bar yAxisId="credits" dataKey="credits" name="Credits" fill={`url(#${id}-bar-accent)`} radius={[6, 6, 2, 2]} maxBarSize={18} isAnimationActive={animate} animationDuration={duration} />
+            <Line
+              yAxisId="debits"
+              type="monotone"
+              dataKey="debits"
+              name="Debits"
+              stroke={SERIES.primary}
+              strokeWidth={2}
+              dot={false}
+              filter={`url(#${id}-glow)`}
+              isAnimationActive={animate}
+              animationDuration={duration}
+            />
+          </ComposedChart>
         </ResponsiveContainer>
       )}
     </ChartFrame>
@@ -225,7 +270,7 @@ export function TopEsimsBar({
           <BarChart data={data} layout="vertical" margin={{ top: 0, right: 12, left: 8, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid stroke="var(--grid-line)" horizontal={false} />
-            <XAxis type="number" {...AXIS} />
+            <XAxis type="number" {...AXIS} tickFormatter={axisNum} />
             <YAxis
               type="category"
               dataKey="label"
@@ -263,7 +308,7 @@ export function CountryBar({ data, unit = "GB" }: { data: { label: string; value
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
             <XAxis dataKey="label" {...AXIS} interval={0} angle={-35} textAnchor="end" height={52} tick={{ ...AXIS.tick, fontSize: 11 }} />
-            <YAxis {...AXIS} width={48} />
+            <YAxis {...AXIS} width={48} tickFormatter={axisNum} />
             <Tooltip cursor={{ fill: "var(--surface-3)", opacity: 0.4 }} content={<GlassTooltip format={(v) => `${plain(v)} ${unit}`} />} />
             <Bar dataKey="value" name="Usage" fill={`url(#${id}-bar-primary)`} radius={[8, 8, 3, 3]} maxBarSize={28} isAnimationActive={animate} animationDuration={duration} />
           </BarChart>
@@ -292,7 +337,7 @@ export function RevenueProfitChart({ data }: { data: { label: string; revenue: n
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
             <XAxis dataKey="label" {...AXIS} />
-            <YAxis {...AXIS} width={56} tickFormatter={eur} />
+            <YAxis {...AXIS} width={56} tickFormatter={axisEur} />
             <Tooltip cursor={{ fill: "var(--surface-3)", opacity: 0.4 }} content={<GlassTooltip format={eur} />} />
             <Bar dataKey="revenue" name="Revenue" fill={`url(#${id}-bar-primary)`} radius={[6, 6, 2, 2]} maxBarSize={20} isAnimationActive={animate} animationDuration={duration} />
             <Bar dataKey="cost" name="Supplier cost" fill="var(--neutral)" fillOpacity={0.45} radius={[6, 6, 2, 2]} maxBarSize={20} isAnimationActive={animate} animationDuration={duration} />

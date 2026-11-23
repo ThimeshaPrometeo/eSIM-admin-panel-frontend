@@ -590,8 +590,8 @@ function SellResultView({ result, addPlan, esimId, onAgain }: { result: SellResu
       </ResultFrame>
     );
   return (
-    <div className={cn("grid gap-6 lg:grid-cols-[minmax(0,440px)_1fr] lg:items-center", reveal)}>
-      <div className="mx-auto w-full max-w-[440px]">
+    <div className={cn("grid gap-6 lg:grid-cols-[minmax(0,440px)_1fr] lg:items-start", reveal)}>
+      <div className="mx-auto w-full max-w-[440px] lg:sticky lg:top-6 lg:pt-6">
         <EsimCard iccid={result.iccid} planName={result.planName} lpa={result.lpa} usedBytes={0} limitBytes={result.limitBytes} statusLabel={result.funding === "waiting" ? "Blocked until funded" : "Ready to install"} />
       </div>
       <GlassCard className="flex flex-col gap-5">

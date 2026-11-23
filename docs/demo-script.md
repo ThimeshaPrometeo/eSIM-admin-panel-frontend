@@ -39,8 +39,8 @@ change). The role switcher in the user menu changes role without signing out.
   **22%**. It's created only in this platform; nothing at the supplier.
 - On its page: **Change markup** (admin only, reason required, audit trail), **Discounts → Add discount**
   with the live before/after price.
-- Open **Lanka Roam Travels**: available **€0.40**, €373 held for running plans, **2 plans waiting for
-  funds**. "Their money is committed to running plans."
+- Open **Lanka Roam Travels**: available **€0.40**, almost the whole balance held for running plans, **2 plans
+  waiting for funds**. "Their money is committed to running plans."
 
 ## 5. Switch to the reseller and sell with zero balance (3 min)
 

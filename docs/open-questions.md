@@ -20,6 +20,15 @@ For every question still open: **build on the stated assumption** (product, 2026
 | Q-API-CASE | The backend returns camelCase on `/api/v1`; `lib/api` maps types and shapes, not casing (CONVENTIONS §3) |
 | Missing endpoints | Timeline, eSIM CSV export, email QR, PDF watermark and its settings are faked in demo mode; suggested endpoints in [backend-backlog.md](backend-backlog.md) |
 
+### Answered (2026-11-23, review of phases 2–4)
+
+| # | Answer |
+|---|---|
+| Q-ONESCREEN | Keep the one-screen desktop layouts (CONVENTIONS §9.2a) |
+| Q-ROUTE2FA | The 2FA set-up screen is built after the demo, together with Profile and security |
+| Q-DEMOPASSKEY | Demo passkey sign-in as the admin is fine for the demo |
+| Q-EXPORTLIBS | `jspdf` and `write-excel-file` approved (bundled, loaded on export only, no network calls) |
+
 ## 1. Still open, building on the assumption
 
 | # | Question | Assumption until answered | Blocks |

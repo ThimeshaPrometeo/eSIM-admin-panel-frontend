@@ -41,7 +41,7 @@ export function OrdersClient() {
     },
     { id: "plan", header: "Plan", cell: (o) => o.planName, sortValue: (o) => o.planName },
     ...(isTenant ? [{ id: "reseller", header: "Reseller", cell: (o: Order) => o.resellerName ?? <span className="text-fg-2">Direct</span>, sortValue: (o: Order) => o.resellerName ?? "" }] : []),
-    { id: "user", header: "By", cell: (o) => <span className="text-fg-2">{o.userName}</span>, sortValue: (o) => o.userName },
+    { id: "user", header: "By", cell: (o) => <span className="text-fg-2">{o.userName}</span>, sortValue: (o) => o.userName, defaultHidden: true },
     { id: "hold", header: "Hold", align: "right", cell: (o) => formatMoney(o.holdAmount), sortValue: (o) => toNumber(o.holdAmount) },
     { id: "status", header: "Status", cell: (o) => <StatusChip status={ORDER_STATUS[o.status]} />, sortValue: (o) => o.status },
   ];

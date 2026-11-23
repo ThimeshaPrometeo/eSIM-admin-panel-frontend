@@ -279,5 +279,8 @@ files. If a page needs something the design system doesn't have, add it there fi
   screenshots of every new screen) and pauses until approved.
 - New open questions go in [open-questions.md](open-questions.md) with the assumption used.
 - Committed files and commit messages talk only about the project, never about the tools used to write it.
+- **Never run `git commit` or `git push`** (rule from 2026-11-23). All changes stay uncommitted; the product
+  owner reviews and commits them. At the end of each phase, list the changed files (`git status --short`)
+  and a suggested commit message in project-only wording (no tool names).
 - Tests (Vitest) for everything in `lib/platform/*`, the demo pricing formula, permission-matrix rules,
   sell-flow outcomes and the route guard.

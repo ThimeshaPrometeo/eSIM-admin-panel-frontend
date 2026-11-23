@@ -64,18 +64,19 @@ export function PriceListClient() {
       sortValue: (r) => r.country,
       hideable: false,
     },
-    { id: "network", header: "Network", cell: (r) => r.operator, sortValue: (r) => r.operator },
+    { id: "network", header: "Network", cell: (r) => r.operator, sortValue: (r) => r.operator, className: "whitespace-normal min-w-36" },
     { id: "tech", header: "Technology", cell: (r) => <NetworkBadges lte={r.lte} fiveG={r.nr} volte={r.volte} /> },
     { id: "mccmnc", header: "MCC-MNC", cell: (r) => <span className="font-mono text-small text-fg-2">{r.mccMnc}</span>, defaultHidden: true },
     ...(isTenant
       ? [
-          { id: "cost", header: "Supplier €/MB", align: "right" as const, cell: (r: PriceListRow) => formatPerMb(r.costPerMb), sortValue: (r: PriceListRow) => r.costPerMb ?? null },
+          // with a reseller picked, their prices replace the supplier €/MB column (it stays in the exports)
+          ...(reseller ? [] : [{ id: "cost", header: "Supplier €/MB", align: "right" as const, cell: (r: PriceListRow) => formatPerMb(r.costPerMb), sortValue: (r: PriceListRow) => r.costPerMb ?? null }]),
           { id: "costgb", header: "Supplier €/GB", align: "right" as const, cell: (r: PriceListRow) => formatPerGb(r.costPerMb), sortValue: (r: PriceListRow) => r.costPerMb ?? null },
           { id: "retail", header: "Retail €/GB", align: "right" as const, cell: (r: PriceListRow) => formatPerGb(r.retailPricePerMb), sortValue: (r: PriceListRow) => r.retailPricePerMb ?? null, defaultHidden: true },
           ...(reseller
             ? [
-                { id: "rmb", header: `${reseller} €/MB`, align: "right" as const, cell: (r: PriceListRow) => formatPerMb(r.resellerPricePerMb), sortValue: (r: PriceListRow) => r.resellerPricePerMb ?? null },
-                { id: "rgb", header: `${reseller} €/GB`, align: "right" as const, cell: (r: PriceListRow) => <span className="font-medium">{formatPerGb(r.resellerPricePerMb)}</span>, sortValue: (r: PriceListRow) => r.resellerPricePerMb ?? null },
+                { id: "rmb", header: "Reseller €/MB", align: "right" as const, cell: (r: PriceListRow) => formatPerMb(r.resellerPricePerMb), sortValue: (r: PriceListRow) => r.resellerPricePerMb ?? null },
+                { id: "rgb", header: "Reseller €/GB", align: "right" as const, cell: (r: PriceListRow) => <span className="font-medium">{formatPerGb(r.resellerPricePerMb)}</span>, sortValue: (r: PriceListRow) => r.resellerPricePerMb ?? null },
               ]
             : []),
         ]

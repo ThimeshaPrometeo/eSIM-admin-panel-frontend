@@ -25,7 +25,7 @@ export function esimColumns({ reseller }: { reseller: boolean }): Column<Esim>[]
       hideable: false,
     },
     { id: "status", header: "Status", cell: (e) => <StatusChip status={esimStatus(e.status, e.suspendedBy)} />, sortValue: (e) => e.status },
-    { id: "install", header: "Install", cell: (e) => <StatusChip status={installStatus(e.installStatus, e.installStatusRaw)} />, sortValue: (e) => e.installStatus, defaultHidden: false },
+    { id: "install", header: "Install", cell: (e) => <StatusChip status={installStatus(e.installStatus, e.installStatusRaw)} />, sortValue: (e) => e.installStatus, defaultHidden: true },
     {
       id: "plan",
       header: "Current plan",
@@ -50,7 +50,7 @@ export function esimColumns({ reseller }: { reseller: boolean }): Column<Esim>[]
       header: "Data used",
       cell: (e) =>
         e.limitBytes ? (
-          <span className="flex w-36 flex-col gap-1.5">
+          <span className="flex w-32 flex-col gap-1.5">
             <span className="text-small text-fg-2 tabular">
               {formatBytes(e.usedBytes)} of {formatPlanData(e.limitBytes)}
             </span>
@@ -61,9 +61,9 @@ export function esimColumns({ reseller }: { reseller: boolean }): Column<Esim>[]
         ),
       sortValue: (e) => (e.limitBytes ? e.usedBytes / e.limitBytes : -1),
     },
-    { id: "expiry", header: "Expires", cell: (e) => formatDate(e.expiresAt), sortValue: (e) => e.expiresAt ?? "" },
-    { id: "customer", header: "Customer", cell: (e) => e.customerName ?? <span className="text-fg-3">—</span>, sortValue: (e) => e.customerName ?? "" },
+    { id: "expiry", header: "Expires", cell: (e) => formatDate(e.expiresAt), sortValue: (e) => e.expiresAt ?? "", defaultHidden: true },
+    { id: "customer", header: "Customer", cell: (e) => e.customerName ?? <span className="text-fg-3">—</span>, sortValue: (e) => e.customerName ?? "", className: "whitespace-normal min-w-28" },
     ...(reseller ? [{ id: "reseller", header: "Reseller", cell: (e: Esim) => e.resellerName ?? <span className="text-fg-2">Direct</span>, sortValue: (e: Esim) => e.resellerName ?? "" }] : []),
-    { id: "activity", header: "Last activity", cell: (e) => <span className="text-fg-2">{formatRelative(e.lastActivityAt)}</span>, sortValue: (e) => e.lastActivityAt ?? "" },
+    { id: "activity", header: "Last activity", cell: (e) => <span className="text-fg-2">{formatRelative(e.lastActivityAt)}</span>, sortValue: (e) => e.lastActivityAt ?? "", defaultHidden: true },
   ];
 }

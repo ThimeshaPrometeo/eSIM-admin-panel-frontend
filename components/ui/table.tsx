@@ -22,7 +22,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       className={cn(
-        "glass-pop !rounded-none !border-x-0 !border-t-0 !shadow-none h-11 whitespace-nowrap px-4 text-left align-middle text-small font-medium text-fg-2 first:rounded-tl-card last:rounded-tr-card",
+        "glass-pop !rounded-none !border-x-0 !border-t-0 !shadow-none h-11 whitespace-nowrap px-3 text-left first:pl-4 last:pr-4 align-middle text-small font-medium text-fg-2 first:rounded-tl-card last:rounded-tr-card",
         className,
       )}
       {...props}
@@ -30,7 +30,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   );
 }
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
-  return <td className={cn("h-14 whitespace-nowrap border-b border-border px-4 align-middle", className)} {...props} />;
+  return <td className={cn("h-14 whitespace-nowrap border-b border-border px-3 align-middle first:pl-4 last:pr-4", className)} {...props} />;
 }
 
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell };

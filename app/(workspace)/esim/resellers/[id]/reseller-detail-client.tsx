@@ -11,7 +11,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UsageAreaChart } from "@/components/platform/charts/charts";
+import { UsageAreaChart, usageSeries } from "@/components/platform/charts/charts";
 import { ConfirmDialog } from "@/components/platform/confirm-dialog";
 import { DataTable, type Column } from "@/components/platform/data-table";
 import { DiscountForm } from "@/components/platform/discount-dialog";
@@ -213,17 +213,13 @@ export function ResellerDetailClient({ id }: { id: string }) {
 function OverviewTab({ reseller }: { reseller: Reseller }) {
   const period = useMemo(() => periodFor("30d"), []);
   const { data } = useResource(() => dashboardApi.getDashboard(period, { resellerId: reseller.id }), [reseller.id]);
-  const usage = (data?.usage ?? []).map((u) => ({
-    label: formatAxisDate(u.bucket),
-    final: u.estimatedBytes ? null : Math.round(toUnit(u.finalBytes, "GB") * 100) / 100,
-    estimated: u.estimatedBytes ? Math.round(toUnit(u.finalBytes + u.estimatedBytes, "GB") * 100) / 100 : null,
-  }));
+  const usage = usageSeries((data?.usage ?? []).map((u) => ({ label: formatAxisDate(u.bucket), value: Math.round(toUnit(u.finalBytes + u.estimatedBytes, "GB") * 100) / 100, estimated: u.estimatedBytes > 0 })));
   return (
     <div className="flex flex-col gap-4">
       <GlassCard className="grid grid-cols-2 gap-6 sm:grid-cols-4">
         <StatBlock label="eSIMs" value={reseller.esimCount} />
         <StatBlock label="Active eSIMs" value={data?.stats.activeEsims ?? 0} loading={!data} />
-        <StatBlock label="Data used, 30 days" value={data ? toUnit(data.stats.dataUsedBytes, "GB") : 0} format={(n) => `${n.toFixed(1)} GB`} loading={!data} />
+        <StatBlock label="Data used, 30 days" value={data ? toUnit(data.stats.dataUsedBytes, "GB") : 0} format={(n) => (n === 0 ? "0 GB" : `${n.toFixed(1)} GB`)} loading={!data} />
         <StatBlock label="Customers" value={reseller.customerCount} />
       </GlassCard>
       <UsageAreaChart data={usage} unit="GB" title="Data usage, last 30 days" description="GB per day; the dashed part is estimated until the nightly report" />

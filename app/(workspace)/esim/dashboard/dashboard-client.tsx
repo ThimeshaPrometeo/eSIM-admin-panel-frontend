@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CountryBar, MonthlyBarChart, PlansSoldChart, RevenueProfitChart, StatusDonut, TopEsimsBar, TransactionsChart, UsageAreaChart } from "@/components/platform/charts/charts";
+import { CountryBar, MonthlyBarChart, PlansSoldChart, RevenueProfitChart, StatusDonut, TopEsimsBar, TransactionsChart, UsageAreaChart, usageSeries } from "@/components/platform/charts/charts";
 import { ChartFill, ChartFrame } from "@/components/platform/charts/chart-kit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PeriodSelect, ResellerSelect, UnitSelect } from "@/components/platform/fields";
@@ -41,21 +41,11 @@ export function DashboardClient() {
   const label = (b: string) => formatAxisDate(b.length === 4 ? `${b}-01-01` : b.length === 7 ? `${b}-01` : b, period.granularity);
   const v = (bytes: number) => Math.round(toUnit(bytes, unit) * 100) / 100;
 
-  const usage = useMemo(() => {
-    if (!data) return [];
-    const firstEstimated = data.usage.findIndex((u) => u.estimatedBytes > 0);
-    return data.usage.map((u, i) => {
-      const total = v(u.finalBytes + u.estimatedBytes);
-      const isEst = u.estimatedBytes > 0;
-      return {
-        label: label(u.bucket),
-        final: isEst ? null : total,
-        // the estimated tail starts at the last final point so the line connects
-        estimated: isEst || (firstEstimated > 0 && i === firstEstimated - 1) ? total : null,
-      };
-    });
+  const usage = useMemo(
+    () => usageSeries((data?.usage ?? []).map((u) => ({ label: label(u.bucket), value: v(u.finalBytes + u.estimatedBytes), estimated: u.estimatedBytes > 0 }))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, unit, period.granularity]);
+    [data, unit, period.granularity],
+  );
 
   const statusTone = { active: "accent", pending: "primary", suspended: "danger", expired: "neutral", in_stock: "warning" } as const;
   const statusLabel = { active: "Active", pending: "Waiting to start", suspended: "Suspended", expired: "Expired", in_stock: "In stock" } as const;
@@ -71,7 +61,14 @@ export function DashboardClient() {
     ? {
         usage: <UsageAreaChart data={usage} unit={unit} title="Data usage" description={`${unit} per ${period.granularity}; dashed = estimated until the nightly report`} />,
         monthly: <MonthlyBarChart data={data.monthly.map((m) => ({ label: formatAxisDate(`${m.month}-01`, "month"), value: v(m.bytes) }))} unit={unit} />,
-        status: <StatusDonut data={data.status.filter((s) => s.count > 0).map((s) => ({ label: statusLabel[s.key], value: s.count, tone: statusTone[s.key] }))} />,
+        // the centre shows sold eSIMs (= Total eSIMs above); stock is a slice of its own
+        status: (
+          <StatusDonut
+            data={data.status.filter((s) => s.count > 0).map((s) => ({ label: statusLabel[s.key], value: s.count, tone: statusTone[s.key] }))}
+            total={data.stats.totalEsims}
+            totalLabel="sold eSIMs"
+          />
+        ),
         plans: <PlansSoldChart data={(fit ? data.plansSold.slice(0, 6) : data.plansSold).map((p) => ({ label: p.name, value: p.count }))} />,
         transactions: <TransactionsChart data={data.transactions.map((t) => ({ label: label(t.bucket), credits: t.credits, debits: t.debits }))} />,
         top: <TopEsimsBar data={data.topEsims.map((e) => ({ id: e.id, label: `…${e.iccid.slice(-8)}`, value: v(e.bytes) }))} unit={unit} onSelect={(id) => router.push(`/esim/esims/${id}`)} />,

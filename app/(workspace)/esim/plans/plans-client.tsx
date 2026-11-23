@@ -46,12 +46,13 @@ export function PlansClient() {
         </span>
       ),
       sortValue: (p) => p.zoneName,
+      className: "whitespace-normal min-w-32",
     },
     { id: "data", header: "Data", align: "right", cell: (p) => formatPlanData(p.dataBytes), sortValue: (p) => p.dataBytes },
     { id: "days", header: "Validity", align: "right", cell: (p) => `${p.validityDays} days`, sortValue: (p) => p.validityDays },
     {
       id: "cost",
-      header: "Supplier cost per GB",
+      header: "Cost per GB",
       align: "right",
       cell: (p) =>
         p.costPerMb ? (

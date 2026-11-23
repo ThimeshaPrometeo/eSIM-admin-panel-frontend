@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UsageAreaChart } from "@/components/platform/charts/charts";
+import { UsageAreaChart, usageSeries } from "@/components/platform/charts/charts";
 import { ConfirmDialog } from "@/components/platform/confirm-dialog";
 import { DataTable, type Column } from "@/components/platform/data-table";
 import { AddDataDialog, EmailQrDialog, ExtendPlanDialog } from "@/components/platform/esim-dialogs";
@@ -163,7 +163,11 @@ export function EsimDetailClient({ id }: { id: string }) {
               {e.resellerName !== null || me?.role === "admin" || me?.role === "staff" ? <Detail label="Reseller">{e.resellerName ?? "Direct sale"}</Detail> : null}
               <Detail label="Customer">
                 {e.customerName ?? <span className="text-fg-3">None</span>}
-                {e.customerEmail ? <span className="block text-small text-fg-3">{e.customerEmail}</span> : null}
+                {e.customerEmail ? (
+                  <span className="block truncate text-small text-fg-3" title={e.customerEmail}>
+                    {e.customerEmail}
+                  </span>
+                ) : null}
               </Detail>
               <Detail label="Sold">{formatDate(e.createdAt)}</Detail>
               <Detail label="Last activity">{e.lastActivityAt ? formatRelative(e.lastActivityAt) : <span className="text-fg-3">No use yet</span>}</Detail>
@@ -312,7 +316,7 @@ export function EsimDetailClient({ id }: { id: string }) {
   // Desktop: one screen. The eSIM on the left; plans, usage, install details and activity as tabs on the right.
   if (fit)
     return (
-      <div className="grid h-[calc(100dvh-104px)] min-h-[560px] grid-cols-[minmax(340px,400px)_1fr] gap-4">
+      <div className="grid h-[calc(100dvh-104px)] min-h-[560px] grid-cols-[360px_1fr] gap-4 2xl:grid-cols-[400px_1fr]">
         <GlassCard className="flex min-h-0 flex-col gap-5 overflow-y-auto">
           {back}
           {card}
@@ -424,20 +428,26 @@ function PlansSection({
       header: "Plan",
       cell: (p) => (
         <span className="flex flex-col">
-          <span className="font-medium">{p.name}</span>
-          <span className="text-small text-fg-3">{ACTIVATION[p.activation]}</span>
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{p.name}</span>
+            <StatusChip status={PLAN_STATE[p.state]} className="h-5 text-[11px]" />
+          </span>
+          <span className="text-small text-fg-3">
+            {ACTIVATION[p.activation]}
+            {p.expiresAt ? ` · ${p.state === "expired" || p.state === "ended" ? "ended" : "expires"} ${formatDate(p.expiresAt)}` : ""}
+          </span>
         </span>
       ),
       hideable: false,
+      className: "whitespace-normal min-w-36",
     },
-    { id: "state", header: "State", cell: (p) => <StatusChip status={PLAN_STATE[p.state]} />, sortValue: (p) => p.state },
     { id: "start", header: "Started", cell: (p) => (p.startedAt ? formatDate(p.startedAt) : <span className="text-fg-3">Not yet</span>), sortValue: (p) => p.startedAt ?? "", defaultHidden: true },
-    { id: "expiry", header: "Expires", cell: (p) => formatDate(p.expiresAt), sortValue: (p) => p.expiresAt ?? "" },
+
     {
       id: "data",
       header: "Data",
       cell: (p) => (
-        <span className="flex w-28 flex-col gap-1.5">
+        <span className="flex w-24 flex-col gap-1.5">
           <span className="text-small text-fg-2 tabular">
             {formatBytes(p.usedBytes)} of {formatPlanData(p.limitBytes)}
           </span>
@@ -450,24 +460,10 @@ function PlansSection({
       header: "Hold",
       align: "right",
       cell: (p) => (
-        <span className="flex flex-col items-end">
-          <span>{formatMoney(p.hold.amount)}</span>
-          <span className="text-small text-fg-3">{formatMoney(p.hold.used)} used</span>
-        </span>
-      ),
-    },
-    {
-      id: "charges",
-      header: "Charges",
-      align: "right",
-      cell: (p) => (
         <span className="flex flex-col items-end gap-0.5">
-          <span>{formatMoney(toNumber(p.charges.final) + toNumber(p.charges.estimated))}</span>
-          {toNumber(p.charges.estimated) > 0 ? (
-            <span className="flex items-center gap-1 text-small text-fg-3">
-              <EstimatedChip className="h-5 text-[11px]" /> {formatMoney(p.charges.estimated)}
-            </span>
-          ) : null}
+          <span>{formatMoney(p.hold.amount)}</span>
+          <span className="text-small text-fg-3">{formatMoney(p.hold.used)} charged</span>
+          {toNumber(p.charges.estimated) > 0 ? <EstimatedChip className="h-5 text-[11px]" /> : null}
         </span>
       ),
     },
@@ -530,11 +526,7 @@ function UsageSection({ id, iccid }: { id: string; iccid: string }) {
   }, [days]);
   const { data } = useResource(() => esimsApi.getEsimUsage(id, period), [id, period.from, period.to]);
   const v = (b: number) => Math.round(toUnit(b, unit) * 100) / 100;
-  const chart = (data?.daily ?? []).map((d, i, all) => ({
-    label: formatAxisDate(d.date),
-    final: d.estimated ? null : v(d.bytes),
-    estimated: d.estimated || all[i + 1]?.estimated ? v(d.bytes) : null,
-  }));
+  const chart = usageSeries((data?.daily ?? []).map((d) => ({ label: formatAxisDate(d.date), value: v(d.bytes), estimated: d.estimated })));
   const cols: ExportColumn<{ date: string; bytes: number; estimated: boolean }>[] = [
     { header: "Date", value: (r) => r.date },
     { header: "Data (MB)", value: (r) => Math.round((r.bytes / 1048576) * 10) / 10 },

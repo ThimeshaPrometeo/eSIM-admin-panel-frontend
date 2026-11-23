@@ -46,9 +46,7 @@ export function AssistantsClient() {
       cell: (a) => (
         <span className="flex flex-col">
           <span className="font-medium">{a.fullName}</span>
-          <span className="text-small text-fg-3">
-            {a.username} · {a.email}
-          </span>
+          <span className="text-small text-fg-3">{a.username}</span>
         </span>
       ),
       sortValue: (a) => a.fullName,
@@ -67,13 +65,14 @@ export function AssistantsClient() {
               <span className="block h-full rounded-full bg-[var(--gradient-signature)]" style={{ width: `${(c.enabled / c.total) * 100}%` }} />
             </span>
             <span className="text-small text-fg-2 tabular">
-              {c.enabled} of {c.total} areas enabled
+              {c.enabled} of {c.total} areas
             </span>
           </span>
         );
       },
       sortValue: (a) => enabledCount(a.grants, RESELLER_MATRIX).enabled,
     },
+    { id: "email", header: "Email", cell: (a) => <span className="text-fg-2">{a.email}</span>, sortValue: (a) => a.email, defaultHidden: true },
     { id: "last", header: "Last sign-in", cell: (a) => <span className="text-fg-2">{a.lastSignInAt ? formatRelative(a.lastSignInAt) : "Never"}</span>, sortValue: (a) => a.lastSignInAt ?? "" },
     {
       id: "actions",

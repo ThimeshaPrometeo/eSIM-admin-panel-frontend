@@ -125,16 +125,19 @@ export function createSeed(now: Date = new Date()): DState {
   ];
 
   const FIRST = ["Nimal", "Dinithi", "Ayesha", "Chamara", "Hiruni", "Kavindu", "Sanduni", "Tharindu", "Isuru", "Nethmi", "Sachini", "Lahiru", "Oshadi", "Ravindu", "Anjali", "Mihiri", "Yasas", "Pasindu", "Gayani", "Dulaj", "Emma", "Lucas", "Sofia", "Noah", "Mia", "Leo", "Hana", "Arjun", "Priya", "Omar"];
-  const LAST = ["Perera", "Fernando", "de Silva", "Jayawardena", "Ranasinghe", "Wijesinghe", "Abeysekera", "Karunaratne", "Senanayake", "Mendis", "Rossi", "Müller", "Tanaka", "Khan", "Nair", "Haddad"];
+  // Sri Lankan first names with Sri Lankan surnames; travellers from abroad with surnames from abroad
+  const LAST_LK = ["Perera", "Fernando", "de Silva", "Jayawardena", "Ranasinghe", "Wijesinghe", "Abeysekera", "Karunaratne", "Senanayake", "Mendis"];
+  const LAST_INTL = ["Rossi", "Müller", "Tanaka", "Khan", "Nair", "Haddad", "Martin", "Novak"];
   const owners: (string | null)[] = [null, "r1", "r2", "r3", "r4", "r5", "r6"];
   const customers = Array.from({ length: 60 }, (_, i) => {
     const first = FIRST[i % FIRST.length]!;
-    const last = LAST[(i * 7) % LAST.length]!;
+    const lastNames = i % FIRST.length < 20 ? LAST_LK : LAST_INTL;
+    const last = lastNames[(i * 7) % lastNames.length]!;
     const resellerId = i < 20 ? null : owners[1 + (i % 6)]!;
     return {
       id: `c${i + 1}`,
       name: `${first} ${last}`,
-      email: `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, "") + "@mail.example",
+      email: `${first}.${last}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z.]/g, "") + "@mail.example",
       phone: `+94 7${rng.int(0, 8)} ${rng.digits(3)} ${rng.digits(4)}`,
       resellerId,
       createdAt: at(-rng.int(10, 160)),
@@ -253,7 +256,9 @@ export function createSeed(now: Date = new Date()): DState {
     if (opts.start !== null) {
       startedAt = at(opts.start, rng.int(6, 22), rng.int(0, 59));
       expiresAt = at(opts.start + plan.validityDays, 23, 59);
-      const lastDay = Math.min(opts.start + plan.validityDays - 1, 0);
+      // a deleted plan stops using data on the day it was deleted
+      const deletedOn = opts.story === "deleted" ? Math.min(0, opts.start + rng.int(1, 5)) : null;
+      const lastDay = Math.min(opts.start + plan.validityDays - 1, 0, deletedOn ?? 0);
       const days = lastDay - opts.start + 1;
       const mb: number[] = [];
       let total = 0;
@@ -276,7 +281,7 @@ export function createSeed(now: Date = new Date()): DState {
       });
       const depleted = total >= limitMb - 0.05;
       state = opts.story === "deleted" ? "deleted" : opts.start + plan.validityDays <= 0 ? (depleted ? "depleted" : "expired") : depleted ? "depleted" : "active";
-      if (opts.story === "deleted") expiresAt = at(Math.min(0, opts.start + rng.int(1, 5)), 12);
+      if (deletedOn !== null) expiresAt = at(deletedOn, 12);
     }
 
     const used = round2(chargedFinal + chargedEstimated);
