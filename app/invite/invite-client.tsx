@@ -8,7 +8,7 @@ import { usePlatform } from "@/contexts/platform-context";
 import { useResource } from "@/hooks/use-resource";
 import { authApi } from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/errors";
-import { landingPath, SIGN_IN_DATA } from "../sign-in-client";
+import { landingPath, SIGN_IN_DATA } from "../sign-in-shared";
 
 /** Accept an invitation (`?token=`): set a password, then the 2FA set-up (8.24, 8.31). */
 export function InviteClient() {

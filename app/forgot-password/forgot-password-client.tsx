@@ -5,7 +5,7 @@ import { ForgotPasswordCard } from "@/components/platform/auth-cards";
 import { SignInView } from "@/components/platform/sign-in-view";
 import { authApi } from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/errors";
-import { SIGN_IN_DATA } from "../sign-in-client";
+import { SIGN_IN_DATA } from "../sign-in-shared";
 
 /** Forgot password (spec 8.31). */
 export function ForgotPasswordClient() {

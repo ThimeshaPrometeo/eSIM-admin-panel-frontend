@@ -15,7 +15,7 @@ actions change it. Names of entities and fields follow the backend schema (`sche
 | Reset | User menu → "Reset demo data" → confirm → reseed, keep the signed-in role |
 | Latency | Random 150–600 ms per call (seeded per call so it's not jumpy); configurable to 0 in tests |
 | Errors | Demo functions throw `ApiError` with the backend's codes (see §6) |
-| Sign-in | Any password; 2FA accepts any 6 digits (or a recovery code of 8+ characters). A known username or email signs in as that user (e.g. `nadeesha`, `amaya`, `sahan`, `dilini`), anything else as the admin. The demo user for each role is fixed (§3); the role switcher swaps the signed-in user |
+| Sign-in | Any password; 2FA accepts any 6 digits except `000000`, which shows the wrong-code state (or a recovery code of 8+ characters); 5 wrong codes lock the code step for 5 minutes. A known username or email signs in as that user (e.g. `nadeesha`, `amaya`, `sahan`, `dilini`), anything else as the admin. The demo user for each role is fixed (§3); the role switcher swaps the signed-in user |
 
 ## 2. Catalogue
 

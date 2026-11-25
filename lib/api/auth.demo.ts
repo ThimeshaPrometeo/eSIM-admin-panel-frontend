@@ -3,13 +3,22 @@ import { meFor } from "@/lib/demo/derive";
 import { demoIp } from "@/lib/demo/ip";
 import { read, write } from "@/lib/demo/run";
 import { caller, nowIso } from "@/lib/demo/session";
-import { db, resetDemoData } from "@/lib/demo/store";
+import { commit, db, resetDemoData } from "@/lib/demo/store";
 import type { Me, Role } from "@/lib/platform/types";
+
+/** After this many wrong codes the 2FA challenge locks for `MFA_LOCK_MINUTES`. */
+export const MFA_MAX_ATTEMPTS = 5;
+export const MFA_LOCK_MINUTES = 5;
 
 export type LoginResult = { mfaRequired: true; methods: ("totp" | "recovery")[] } | { mfaRequired: false; me: Me };
 
 /** The demo user behind each role in the role switcher (demo-data.md §3). */
 export const DEMO_ROLE_USERS: Record<Role, string> = { admin: "u-admin", staff: "u-support", reseller: "u-r1", assistant: "u-sahan" };
+
+function mfaLocked(until: string) {
+  const retryAfterSeconds = Math.max(1, Math.ceil((Date.parse(until) - Date.now()) / 1000));
+  return new ApiError(429, "MFA_LOCKED", undefined, { retryAfterSeconds });
+}
 
 function finish(userId: string): Me {
   const s = db();
@@ -35,18 +44,32 @@ export const demoAuth = {
         u.lockedUntil = null;
       }
       if (u.mfaEnrolled) {
-        s.session = { userId: null, pendingMfaUserId: u.id };
+        // a lock on the code step outlives a new password step for the same user
+        const keepLock = s.session.pendingMfaUserId === u.id ? s.session.mfaLockedUntil : null;
+        s.session = { userId: null, pendingMfaUserId: u.id, mfaFailures: 0, mfaLockedUntil: keepLock ?? null };
         return { mfaRequired: true, methods: ["totp", "recovery"] };
       }
       return { mfaRequired: false, me: finish(u.id) };
     }),
-  /** Any 6 digits, or a recovery code of at least 8 characters. */
+  /**
+   * Any 6 digits except 000000, or a recovery code of at least 8 characters.
+   * After 5 wrong codes the challenge locks for 5 minutes (429 with
+   * `retryAfterSeconds`).
+   */
   verifyMfa: (input: { code: string; method: "totp" | "recovery" }) =>
     write(() => {
       const s = db();
       if (!s.session.pendingMfaUserId) throw new ApiError(401, "UNAUTHENTICATED");
-      const ok = input.method === "totp" ? /^\d{6}$/.test(input.code) : input.code.replace(/\W/g, "").length >= 8;
-      if (!ok) throw new ApiError(401, "INVALID_CODE");
+      const lockedUntil = s.session.mfaLockedUntil;
+      if (lockedUntil && lockedUntil > nowIso()) throw mfaLocked(lockedUntil);
+      const ok = input.method === "totp" ? /^\d{6}$/.test(input.code) && input.code !== "000000" : input.code.replace(/\W/g, "").length >= 8;
+      if (!ok) {
+        const failures = (s.session.mfaFailures ?? 0) + 1;
+        const lock = failures >= MFA_MAX_ATTEMPTS ? new Date(Date.now() + MFA_LOCK_MINUTES * 60000).toISOString() : null;
+        s.session = { ...s.session, mfaFailures: lock ? 0 : failures, mfaLockedUntil: lock };
+        commit(); // a failed write isn't saved; the count must be
+        throw lock ? mfaLocked(lock) : new ApiError(401, "INVALID_CODE");
+      }
       return finish(s.session.pendingMfaUserId);
     }),
   hasPendingMfa: () => read(() => !!db().session.pendingMfaUserId),

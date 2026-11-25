@@ -18,7 +18,9 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, Fingerprint, Gauge, Globe2, Lock, R
 import { cn } from "@/lib/utils";
 import { damp } from "@/lib/design/motion";
 import { activityFlag, activityText, type ActivityEvent } from "@/lib/platform/activity";
+import { LogoMark } from "./logo-mark";
 import { CountUp } from "./motion/count-up";
+import { OtpInput, type OtpInputHandle } from "./otp-input";
 import { useReducedMotion } from "./motion/use-reduced-motion";
 import { LiveGlobe } from "./three/lazy";
 
@@ -54,6 +56,7 @@ export const SIGN_IN_COPY = {
     title: "Check your authenticator",
     sub: "Enter the 6-digit code from your authenticator app.",
     code: "6-digit code",
+    locked: (minutes: number) => `Too many wrong codes. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
     useRecovery: "Use a recovery code instead",
     recoveryTitle: "Use a recovery code",
     recoverySub: "Enter one of the recovery codes you saved when you set up two-factor authentication.",
@@ -114,23 +117,21 @@ type Projection = { x: number; y: number; visible: boolean };
  * Brand: the logo mark only, until tenant settings (white-label) supply a name
  * and logo. `embedded` sizes it to its container (design-system page).
  */
-const CardRefContext = createContext<RefObject<HTMLFormElement | null> | null>(null);
-/** The card's form ref (the signal from the globe lands on it). */
+const CardRefContext = createContext<RefObject<HTMLElement | null> | undefined>(undefined);
+/** The card's ref (the signal from the globe lands on it); undefined inside a `CardTurn`, whose wrapper takes it. */
 export function useCardRef() {
-  const ref = useContext(CardRefContext);
-  if (!ref) throw new Error("useCardRef outside SignInView");
-  return ref;
+  return useContext(CardRefContext);
+}
+/** Faces inside a turning card: the wrapper holds the card ref, not each face. */
+export function DetachedCardRef({ children }: { children: ReactNode }) {
+  return <CardRefContext.Provider value={undefined}>{children}</CardRefContext.Provider>;
 }
 
 export function SignInView({
   countryCount,
   events,
-  step = "credentials",
   onSubmit,
   onPasskey,
-  onVerify,
-  onBack,
-  onChangePassword,
   forgotHref = "/forgot-password",
   systemStatus,
   busy,
@@ -139,17 +140,14 @@ export function SignInView({
   embedded,
   card: customCard,
   tall,
+  leaving,
 }: {
   /** Countries with at least one priced network, from the network data. */
   countryCount: number;
   /** Recent events from the data layer (demo events in demo mode). */
   events: readonly ActivityEvent[];
-  step?: "credentials" | "two-factor" | "change-password";
-  onSubmit?: (values: SignInValues) => void | Promise<void>;
+  onSubmit?: (values: SignInValues) => void | boolean | Promise<void | boolean>;
   onPasskey?: () => void;
-  onVerify?: (values: TwoFactorValues) => void | Promise<void>;
-  onBack?: () => void;
-  onChangePassword?: (values: ChangePasswordValues) => void | Promise<void>;
   forgotHref?: string;
   /** From the backend health check; nothing is shown when absent. */
   systemStatus?: "operational" | null;
@@ -161,10 +159,12 @@ export function SignInView({
   card?: ReactNode;
   /** A taller card: hides the sub-copy and stats to make room. */
   tall?: boolean;
+  /** Signed in: the ambient light brightens while the card hands off to the workspace. */
+  leaving?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const globeHost = useRef<HTMLDivElement>(null);
-  const card = useRef<HTMLFormElement>(null);
+  const card = useRef<HTMLElement>(null);
   const projection = useRef<Projection[]>([]);
 
   const onArrive = useCallback(() => {
@@ -177,7 +177,11 @@ export function SignInView({
   }, []);
 
   return (
-    <div ref={root} className={cn("signin relative isolate flex flex-col overflow-hidden", embedded ? "min-h-[960px]" : "min-h-dvh fit:h-dvh fit:min-h-0")}>
+    <div
+      ref={root}
+      data-leaving={leaving ? "" : undefined}
+      className={cn("signin relative isolate flex flex-col overflow-hidden", embedded ? "min-h-[960px]" : "min-h-dvh fit:h-dvh fit:min-h-0")}
+    >
       <Backdrop />
       <GlobeStage hostRef={globeHost} projectionRef={projection} events={events} />
       <SignalOverlay rootRef={root} globeRef={globeHost} cardRef={card} projectionRef={projection} onArrive={onArrive} />
@@ -205,10 +209,6 @@ export function SignInView({
           <div className="si-enter" style={{ "--i": 6 } as CSSProperties}>
             {customCard ? (
               <CardRefContext.Provider value={card}>{customCard}</CardRefContext.Provider>
-            ) : step === "change-password" ? (
-              <ChangePasswordCard ref={card} onSubmit={onChangePassword} busy={busy} error={error} />
-            ) : step === "two-factor" ? (
-              <TwoFactorCard ref={card} onVerify={onVerify} onBack={onBack} busy={busy} error={error} notice={notice} />
             ) : (
               <SignInCard ref={card} onSubmit={onSubmit} onPasskey={onPasskey} forgotHref={forgotHref} busy={busy} error={error} notice={notice} />
             )}
@@ -237,6 +237,8 @@ function Backdrop() {
       <div className="si-dot-grid absolute inset-0" />
       <div className="film-grain absolute inset-0" />
       <div className="absolute inset-0" style={{ background: "radial-gradient(130% 100% at 50% 45%, transparent 60%, var(--si-vignette) 100%)" }} />
+      {/* brightens while the card hands off to the workspace */}
+      <div className="si-exit-light absolute inset-0" />
     </div>
   );
 }
@@ -337,7 +339,7 @@ function SignalOverlay({
 }: {
   rootRef: RefObject<HTMLDivElement | null>;
   globeRef: RefObject<HTMLDivElement | null>;
-  cardRef: RefObject<HTMLFormElement | null>;
+  cardRef: RefObject<HTMLElement | null>;
   projectionRef: RefObject<Projection[]>;
   onArrive: () => void;
 }) {
@@ -655,7 +657,7 @@ export function CardShell({
   busy,
   children,
 }: {
-  ref: RefObject<HTMLFormElement | null>;
+  ref?: RefObject<HTMLElement | null>;
   title: string;
   sub: string;
   onSubmit: (e: FormEvent) => void;
@@ -664,7 +666,7 @@ export function CardShell({
 }) {
   const id = useId();
   return (
-    <form ref={ref} onSubmit={onSubmit} className="si-glass si-card w-full p-6 sm:p-8 short:p-6 tiny:px-6 tiny:py-5" aria-labelledby={`${id}-title`} aria-busy={busy || undefined} noValidate>
+    <form ref={ref as RefObject<HTMLFormElement | null> | undefined} onSubmit={onSubmit} className="si-glass si-card w-full p-6 sm:p-8 short:p-6 tiny:px-6 tiny:py-5" aria-labelledby={`${id}-title`} aria-busy={busy || undefined} noValidate>
       <h2 id={`${id}-title`} className="text-[20px] font-semibold tracking-[-0.02em]">
         {title}
       </h2>
@@ -674,19 +676,21 @@ export function CardShell({
   );
 }
 
-function SignInCard({
+/** The password face. On success the password is cleared from state at once: no later step keeps it. */
+export function SignInCard({
   ref,
   onSubmit,
   onPasskey,
-  forgotHref,
+  forgotHref = "/forgot-password",
   busy,
   error,
   notice,
 }: {
-  ref: RefObject<HTMLFormElement | null>;
-  onSubmit?: (values: SignInValues) => void | Promise<void>;
+  ref?: RefObject<HTMLElement | null>;
+  /** Resolve `true` when the password was accepted. */
+  onSubmit?: (values: SignInValues) => void | boolean | Promise<void | boolean>;
   onPasskey?: () => void;
-  forgotHref: string;
+  forgotHref?: string;
   busy?: boolean;
   error?: string | null;
   notice?: ReactNode;
@@ -695,12 +699,18 @@ function SignInCard({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
+  const [via, setVia] = useState<"password" | "passkey">("password");
   const c = SIGN_IN_COPY.card;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
-    await onSubmit?.({ username: username.trim(), password });
+    setVia("password");
+    const ok = await onSubmit?.({ username: username.trim(), password });
+    if (ok === true) {
+      setPassword("");
+      setShow(false);
+    }
   };
 
   return (
@@ -768,7 +778,7 @@ function SignInCard({
 
         <button type="submit" className="si-btn si-btn-primary mt-2 w-full short:mt-1" disabled={busy}>
           {c.submit}
-          {busy ? <Spinner /> : <ArrowRight aria-hidden="true" className="si-arrow size-[18px]" strokeWidth={2} />}
+          {busy && via === "password" ? <Spinner /> : <ArrowRight aria-hidden="true" className="si-arrow size-[18px]" strokeWidth={2} />}
         </button>
 
         <div className="flex items-center gap-3 text-[12px] text-[var(--si-fg-subtle)] mini:hidden" aria-hidden="true">
@@ -777,8 +787,17 @@ function SignInCard({
           <span className="h-px flex-1 bg-[linear-gradient(90deg,var(--si-hairline-strong),transparent)]" />
         </div>
 
-        <button type="button" className="si-btn si-btn-outline w-full" onClick={onPasskey} disabled={busy}>
-          <Fingerprint aria-hidden="true" className="size-[18px]" strokeWidth={1.75} />
+        <button
+          type="button"
+          className="si-btn si-btn-outline w-full"
+          onClick={() => {
+            if (busy) return;
+            setVia("passkey");
+            onPasskey?.();
+          }}
+          disabled={busy}
+        >
+          {busy && via === "passkey" ? <Spinner /> : <Fingerprint aria-hidden="true" className="size-[18px]" strokeWidth={1.75} />}
           {c.passkey}
         </button>
       </div>
@@ -789,13 +808,13 @@ function SignInCard({
 }
 
 /** First sign-in: the user must replace the password they were given (D32). */
-function ChangePasswordCard({
+export function ChangePasswordCard({
   ref,
   onSubmit,
   busy,
   error,
 }: {
-  ref: RefObject<HTMLFormElement | null>;
+  ref?: RefObject<HTMLElement | null>;
   onSubmit?: (values: ChangePasswordValues) => void | Promise<void>;
   busy?: boolean;
   error?: string | null;
@@ -872,91 +891,134 @@ function ChangePasswordCard({
   );
 }
 
-/** Second step: a 6-digit authenticator code, or a recovery code. */
-function TwoFactorCard({
+/**
+ * The code step: six digit boxes for the authenticator code (submits itself on
+ * the sixth digit), or one field for a recovery code. A wrong code keeps the
+ * face, clears the boxes, shows the error under them and focuses the first box.
+ */
+export function CodeCard({
   ref,
+  method,
   onVerify,
+  onSwitch,
   onBack,
   busy,
   error,
-  notice,
+  lockedMinutes,
 }: {
-  ref: RefObject<HTMLFormElement | null>;
-  onVerify?: (values: TwoFactorValues) => void | Promise<void>;
-  onBack?: () => void;
+  ref?: RefObject<HTMLElement | null>;
+  method: TwoFactorValues["method"];
+  /** Resolves `false` when the code was wrong (or locked): the face clears and refocuses. */
+  onVerify: (values: TwoFactorValues) => Promise<boolean>;
+  onSwitch: () => void;
+  onBack: () => void;
   busy?: boolean;
   error?: string | null;
-  notice?: ReactNode;
+  /** Too many wrong codes: minutes left before trying again. */
+  lockedMinutes?: number | null;
 }) {
   const id = useId();
-  const [method, setMethod] = useState<TwoFactorValues["method"]>("totp");
-  const [code, setCode] = useState("");
   const t = SIGN_IN_COPY.twoFactor;
   const totp = method === "totp";
-  const ready = totp ? /^\d{6}$/.test(code) : code.trim().length >= 8;
+  const [code, setCode] = useState("");
+  const [retry, setRetry] = useState(0);
+  const otp = useRef<OtpInputHandle>(null);
+  const recovery = useRef<HTMLInputElement>(null);
+  const locked = !!lockedMinutes;
+  const ready = !locked && (totp ? /^\d{6}$/.test(code) : code.trim().length >= 8);
+  const shownError = locked ? t.locked(lockedMinutes) : error;
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (busy || !ready) return;
-    await onVerify?.({ code: totp ? code : code.trim(), method });
+  const verify = async (value: string) => {
+    if (busy || locked) return;
+    const ok = await onVerify({ code: totp ? value : value.trim(), method });
+    if (!ok) {
+      setCode("");
+      setRetry((n) => n + 1);
+    }
   };
 
-  const switchMethod = () => {
-    setMethod(totp ? "recovery" : "totp");
-    setCode("");
-  };
+  // after a wrong code, once the boxes are enabled again: back to the first one
+  useEffect(() => {
+    if (!retry || busy) return;
+    if (totp) otp.current?.focus();
+    else recovery.current?.focus();
+  }, [retry, busy, totp]);
 
   return (
-    <CardShell ref={ref} title={totp ? t.title : t.recoveryTitle} sub={totp ? t.sub : t.recoverySub} onSubmit={submit} busy={busy}>
+    <CardShell
+      ref={ref}
+      title={totp ? t.title : t.recoveryTitle}
+      sub={totp ? t.sub : t.recoverySub}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ready) void verify(code);
+      }}
+      busy={busy}
+    >
       <div className="mt-5 flex flex-col gap-4 short:mt-4 short:gap-3 tiny:mt-3 tiny:gap-2.5">
         <div className="flex flex-col gap-2">
-          <label htmlFor={`${id}-code`} className={labelClass}>
-            {totp ? t.code : t.recovery}
-          </label>
-          <div className="si-field px-3.5" data-invalid={error ? "true" : undefined}>
-            <ShieldCheck aria-hidden="true" className="mr-3 size-[18px] shrink-0 text-[var(--si-fg-subtle)]" strokeWidth={1.75} />
-            <input
-              key={method}
-              id={`${id}-code`}
-              name={totp ? "otp" : "recovery-code"}
-              autoComplete={totp ? "one-time-code" : "off"}
-              inputMode={totp ? "numeric" : "text"}
-              autoCapitalize="none"
-              spellCheck={false}
-              maxLength={totp ? 6 : 32}
-              value={code}
-              onChange={(e) => setCode(totp ? e.target.value.replace(/\D/g, "").slice(0, 6) : e.target.value)}
-              placeholder={totp ? "000000" : "xxxx-xxxx"}
-              className={cn("font-mono", totp && "tracking-[0.5em]")}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${id}-error` : undefined}
-              autoFocus
-              required
-            />
-          </div>
-          <button type="button" onClick={switchMethod} className={cn(linkClass, "self-start")}>
+          {totp ? (
+            <>
+              <p id={`${id}-label`} className={labelClass}>
+                {t.code}
+              </p>
+              <OtpInput
+                ref={otp}
+                value={code}
+                onChange={setCode}
+                onComplete={(v) => void verify(v)}
+                disabled={busy || locked}
+                invalid={!!shownError}
+                labelledBy={`${id}-label`}
+                describedBy={shownError ? `${id}-error` : undefined}
+              />
+            </>
+          ) : (
+            <>
+              <label htmlFor={`${id}-code`} className={labelClass}>
+                {t.recovery}
+              </label>
+              <div className="si-field px-3.5" data-invalid={shownError ? "true" : undefined}>
+                <ShieldCheck aria-hidden="true" className="mr-3 size-[18px] shrink-0 text-[var(--si-fg-subtle)]" strokeWidth={1.75} />
+                <input
+                  ref={recovery}
+                  id={`${id}-code`}
+                  name="recovery-code"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  maxLength={32}
+                  value={code}
+                  disabled={busy || locked}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="xxxx-xxxx"
+                  className="font-mono"
+                  aria-invalid={shownError ? true : undefined}
+                  aria-describedby={shownError ? `${id}-error` : undefined}
+                  required
+                />
+              </div>
+            </>
+          )}
+          {shownError ? (
+            <p id={`${id}-error`} role="alert" className="text-[13px] text-[var(--si-danger)]">
+              {shownError}
+            </p>
+          ) : null}
+          <button type="button" onClick={onSwitch} className={cn(linkClass, "self-start")} disabled={busy}>
             {totp ? t.useRecovery : t.useApp}
           </button>
         </div>
 
-        {error ? (
-          <p id={`${id}-error`} role="alert" className="text-[13px] text-[var(--si-danger)]">
-            {error}
-          </p>
-        ) : null}
-        {notice}
-
-        <button type="submit" className="si-btn si-btn-primary mt-2 w-full short:mt-1" disabled={busy || !ready}>
+        <button type="submit" className="si-btn si-btn-primary mt-1 w-full" disabled={busy || !ready}>
           {t.submit}
           {busy ? <Spinner /> : <ArrowRight aria-hidden="true" className="si-arrow size-[18px]" strokeWidth={2} />}
         </button>
 
-        {onBack ? (
-          <button type="button" onClick={onBack} className="si-btn si-btn-ghost w-full" disabled={busy}>
-            <ArrowLeft aria-hidden="true" className="size-[18px]" strokeWidth={1.75} />
-            {t.back}
-          </button>
-        ) : null}
+        <button type="button" onClick={onBack} className="si-btn si-btn-ghost w-full" disabled={busy}>
+          <ArrowLeft aria-hidden="true" className="size-[18px]" strokeWidth={1.75} />
+          {t.back}
+        </button>
       </div>
 
       <CardFoot />
@@ -987,29 +1049,11 @@ export function Spinner() {
 
 // ------------------------------------------------------------- top / bottom --
 
-/** The logo mark only; the brand name and logo come from tenant settings later (white-label). */
-function BrandMark() {
-  return (
-    <span className="flex items-center" role="img" aria-label="eSIM platform">
-      <svg viewBox="0 0 32 32" className="size-8" aria-hidden="true">
-        <defs>
-          <linearGradient id="si-brand" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" style={{ stopColor: "var(--si-blue)" }} />
-            <stop offset="1" style={{ stopColor: "var(--si-teal)" }} />
-          </linearGradient>
-        </defs>
-        <rect x="1" y="1" width="30" height="30" rx="9" fill="none" stroke="url(#si-brand)" strokeWidth="1.5" />
-        <path d="M11 8.5h8l4.5 4.5v10a1 1 0 0 1-1 1H11a1 1 0 0 1-1-1v-13.5a1 1 0 0 1 1-1Z" fill="none" stroke="url(#si-brand)" strokeWidth="1.5" />
-        <rect x="13" y="15.5" width="6" height="5" rx="1.2" fill="none" stroke="url(#si-brand)" strokeWidth="1.25" />
-      </svg>
-    </span>
-  );
-}
-
 function TopBar() {
   return (
     <header className="si-enter relative z-10 flex h-[72px] shrink-0 items-center px-6 short:h-16 tiny:h-14 sm:px-10 lg:px-16" style={{ "--i": 0 } as CSSProperties}>
-      <BrandMark />
+      {/* the logo mark only; the brand name and logo come from tenant settings later (white-label) */}
+      <LogoMark />
     </header>
   );
 }

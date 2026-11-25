@@ -740,8 +740,9 @@
 /* Telemetry cards around the globe. */
 .si-tele-in { animation: si-tele-in 650ms var(--ease-out-expo) both; }
 .si-tele-out { animation: si-tele-out 500ms var(--ease-out-expo) both; }
-/* The card's top edge flashes when the signal arrives. */
-.si-card::after {
+/* The card's top edge flashes when the signal arrives (on the card, or on the turning card's wrapper). */
+.si-card::after,
+.si-turn::after {
   content: "";
   position: absolute;
   left: 10%;
@@ -754,7 +755,28 @@
   opacity: 0;
   pointer-events: none;
 }
-.si-card[data-flash="on"]::after { animation: si-flash 1000ms var(--ease-out-expo); }
+.si-turn::after { z-index: 1; }
+.si-card[data-flash="on"]::after,
+.si-turn[data-flash="on"]::after { animation: si-flash 1000ms var(--ease-out-expo); }
+/*
+ * The turning sign-in card (card-turn.tsx). backdrop-filter on a rotating layer
+ * is costly and glitches in Safari, so while the card turns (or leaves) the
+ * blur is swapped for a plain fill that reads the same, then restored.
+ */
+.si-turn-box[data-turning] .si-glass {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: color-mix(in oklch, var(--si-card) 88%, transparent);
+}
+/* Signed in: the ambient light brightens while the card hands off to the workspace. */
+.si-exit-light {
+  background:
+    radial-gradient(45% 55% at 26% 55%, var(--si-glow-blue), transparent 70%),
+    radial-gradient(55% 60% at 74% 50%, var(--si-glow-teal), transparent 70%);
+  opacity: 0;
+  transition: opacity 400ms var(--ease-in-out);
+}
+.signin[data-leaving] .si-exit-light { opacity: 1; }
 .si-tick { display: inline-block; animation: si-tick 450ms var(--ease-out-expo); }
 .si-aurora { animation: si-aurora 26s var(--ease-in-out) infinite alternate; }
 

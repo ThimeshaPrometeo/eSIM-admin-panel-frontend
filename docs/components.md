@@ -61,6 +61,8 @@ input-otp.
 | `ShaderBackground` | `three/shader-background.tsx` (lazy) | Full-bleed fragment shader: slow domain-warped noise in Azure/Emerald on Midnight Ink, gently follows the lerped pointer. Rendered at 0.35–0.5 scale, DPR ≤ 1.5. Sign-in and dashboard header only |
 | `GlobeFallback` | `three/lazy.tsx` | `public/globe-fallback-dark.svg` / `-light.svg` (pre-rendered by `scripts/build-globe.ts`) |
 | `SignInView` | `components/platform/sign-in-view.tsx` | Approved sign-in layout: brand, headline, stats chips, glass card; globe as a horizon; CSS backdrop with grain and vignette |
+| `CardTurn` | `components/platform/card-turn.tsx` | One card, several faces: 3D turn around Y (650 ms, `cubic-bezier(0.65,0,0.35,1)`), lighter turn for recovery ⇄ app, 150 ms crossfade with reduced motion; height follows the faces; blur swapped for a fill mid-turn; hidden face inert; focus and aria-live on settle; fade-out exit |
+| `OtpInput` | `components/platform/otp-input.tsx` | Six single-digit boxes: auto-advance, Backspace to the previous box, paste or autofill fills all six, `onComplete` on the sixth digit |
 | `AmbientBackground` | `components/platform/ambient-background.tsx` | CSS-only drifting radial lights; every ordinary page |
 
 Shared 3D helpers in `three/`: `use-canvas-visibility.ts` (IntersectionObserver + `visibilitychange` →

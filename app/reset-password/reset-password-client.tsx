@@ -7,7 +7,7 @@ import { SignInView } from "@/components/platform/sign-in-view";
 import { useResource } from "@/hooks/use-resource";
 import { authApi } from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/errors";
-import { SIGN_IN_DATA } from "../sign-in-client";
+import { SIGN_IN_DATA } from "../sign-in-shared";
 
 /** Reset password from the emailed link (`?token=`). */
 export function ResetPasswordClient() {

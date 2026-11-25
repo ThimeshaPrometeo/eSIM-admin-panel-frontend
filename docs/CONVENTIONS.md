@@ -284,8 +284,12 @@ files. If a page needs something the design system doesn't have, add it there fi
 
 ## 11. Workflow
 
-- Phases per spec §16; each ends with a review checkpoint (summary, assumptions, light/dark desktop/mobile
-  screenshots of every new screen) and pauses until approved.
+- Phases per spec §16; each ends with a review checkpoint (summary, assumptions, screenshots as below).
+- **Screenshots: as few as possible** (rule from 2026-11-25; they are expensive to review).
+  - While developing, never screenshot. Verify with typecheck, lint, tests and DOM/text checks (text
+    content, element sizes, overflow, console errors).
+  - At the end of a task, at most **one screenshot per changed page: dark theme, desktop 1440 × 900**.
+  - Light theme, mobile, other sizes or sets of screenshots only when the product owner asks.
 - New open questions go in [open-questions.md](open-questions.md) with the assumption used.
 - Committed files and commit messages talk only about the project, never about the tools used to write it.
 - **Never run `git commit` or `git push`** (rule from 2026-11-23). All changes stay uncommitted; the product

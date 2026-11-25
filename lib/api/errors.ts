@@ -25,6 +25,7 @@ const MESSAGES: Record<string, string> = {
   ACCOUNT_LOCKED: "This account is locked after 10 failed attempts. Try again in 15 minutes.",
   ACCOUNT_DISABLED: "This account is disabled. Ask your administrator.",
   INVALID_CODE: "That code isn't right. Check your authenticator app and try again.",
+  MFA_LOCKED: "Too many wrong codes. Wait a few minutes, then try again.",
   PASSWORD_TOO_SHORT: "Use at least 10 characters.",
   FORBIDDEN: "You don't have access to this.",
   NOT_FOUND: "We couldn't find that. It may have been removed, or it's outside your access.",
@@ -49,4 +50,11 @@ const MESSAGES: Record<string, string> = {
 export function errorMessage(e: unknown): string {
   if (e instanceof ApiError) return MESSAGES[e.code] ?? e.message ?? "Something went wrong. Try again.";
   return "Something went wrong. Try again.";
+}
+
+/** Seconds to wait before retrying, from a 429 (`details.retryAfterSeconds`); null when not given. */
+export function retryAfterSeconds(e: unknown): number | null {
+  if (!(e instanceof ApiError) || e.status !== 429) return null;
+  const v = e.details?.retryAfterSeconds;
+  return typeof v === "number" && v > 0 ? v : null;
 }

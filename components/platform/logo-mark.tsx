@@ -1,23 +1,18 @@
-import { useId } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
+import logo from "@/app/icon.jpg";
 
 /**
  * The product mark (no company name: the brand name and logo come from
- * tenant settings later, white-label). Azure → Emerald line SIM.
+ * tenant settings later, white-label). One image for the whole app: the same
+ * JPG as the browser icon (`app/icon.jpg`), so there is a single file to
+ * replace. The mark sits in the middle of a dark square, so it is shown in a
+ * rounded tile and scaled up to fill it; Next.js serves a small resized copy.
  */
 export function LogoMark({ className, title = "eSIM platform" }: { className?: string; title?: string }) {
-  const id = useId().replace(/:/g, "");
   return (
-    <svg viewBox="0 0 32 32" className={cn("size-8", className)} role="img" aria-label={title}>
-      <defs>
-        <linearGradient id={`${id}-g`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--primary)" />
-          <stop offset="1" stopColor="var(--accent)" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="9" fill="none" stroke={`url(#${id}-g)`} strokeWidth="1.5" />
-      <path d="M11 8.5h8l4.5 4.5v10a1 1 0 0 1-1 1H11a1 1 0 0 1-1-1v-13.5a1 1 0 0 1 1-1Z" fill="none" stroke={`url(#${id}-g)`} strokeWidth="1.5" />
-      <rect x="13" y="15.5" width="6" height="5" rx="1.2" fill="none" stroke={`url(#${id}-g)`} strokeWidth="1.25" />
-    </svg>
+    <span role="img" aria-label={title} className={cn("relative inline-block size-8 shrink-0 overflow-hidden rounded-[28%] bg-[#070b12]", className)}>
+      <Image src={logo} alt="" fill sizes="72px" className="scale-[1.6] object-cover" priority />
+    </span>
   );
 }

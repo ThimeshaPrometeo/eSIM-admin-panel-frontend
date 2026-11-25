@@ -18,6 +18,13 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | `/invite` | 8.24, 8.31 | public | `?token=` | `checkInvitation`, `acceptInvitation`, then `/login/setup-2fa?invite=1` | `InvitationCard` | yes (decisions 2026-11-23) |
 | `/reset-password` | 8.31 | public | `?token=` | `resetPassword` | | yes (Phase 7) |
 
+`/`, `/login/2fa`, `/login/change-password` and `/login/setup-2fa` live in the route group `app/(sign-in)/`. Its
+layout renders one card (`sign-in-flow-client.tsx`, step machine in `lib/platform/sign-in-flow.ts`) that turns in 3D
+between steps; the pages only set the title. The URL follows the step with `history.pushState` / `replaceState` (only
+password → code adds an entry, so Back turns the card back), and the globe never remounts. A direct visit or refresh
+lands on the URL's step if the server agrees; the code step without a live 2FA challenge returns to the password with
+a short message.
+
 ## 2. Workspace (`app/esim/*`, inside `AppShell`)
 
 | Route | Spec | Roles | Module (level to open) | Data functions | Main components | Demo |

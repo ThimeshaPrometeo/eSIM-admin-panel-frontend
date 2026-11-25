@@ -286,7 +286,13 @@ export type DState = {
   seededOn: string;
   /** When the demo data was created: today's usage runs up to this moment. */
   seededAt: string;
-  session: { userId: string | null; pendingMfaUserId: string | null };
+  session: {
+    userId: string | null;
+    pendingMfaUserId: string | null;
+    /** Wrong codes on the current 2FA challenge, and the lock they lead to. */
+    mfaFailures?: number;
+    mfaLockedUntil?: string | null;
+  };
   seq: number;
   settings: DSettings;
   salesToday: { date: string; count: number; capUsed: number };
