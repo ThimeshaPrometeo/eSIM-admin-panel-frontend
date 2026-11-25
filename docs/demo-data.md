@@ -104,12 +104,13 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 
 | Data | Amount and shape |
 |---|---|
-| eSIMs | ~120. Owners: 25 **direct** (house wallet), the rest spread over resellers (most on #2 and #1, none sold by #6 in the last 30 days). Statuses: mostly ACTIVE; 5 SUSPENDED by reseller, 3 by admin, 1 by rule; 2 END_OF_LIFE; 1 INACTIVE |
+| eSIMs | ~1,040 over 90 days (about 900–1,000 GB and €900–1,000 Yesim cost a week). Owners: 25 **direct** (house wallet), the rest on resellers (#2 445, #1 360, #3 190; #4–#6 a handful, none sold by #6 in the last 30 days). Statuses: mostly ACTIVE; 5 SUSPENDED by reseller, 3 by admin, 1 by rule; 2 END_OF_LIFE; 1 INACTIVE |
 | Install status | not installed, downloaded, installed, enabled, disabled, and **one raw unknown value** (`"Pending-Download-Retry"`) |
 | Plans on eSIMs | 1–4 per eSIM; every state present: awaiting funds, blocked: no funds, blocked: hold used up, blocked by admin, pending first use, active, expired, ended |
 | Install details | Realistic activation code, SM-DP+ address, LPA string per eSIM; ICCIDs `8937204016…` style (19–20 digits, fake) |
 | PIN/PUK | Generated on reveal (deterministic per eSIM), never stored in the snapshot; each reveal writes an audit entry |
 | Customers | ~60 (≈20 direct), names/emails/phones fictional |
+| Where data is used | Each plan zone has a destination mix (seed `ZONE_MIX`, `OPERATOR_MIX`): Italy plans on Iliad, Vodafone, Wind and a little TIM; Europe plans mostly Italy and Spain (Movistar first); Asia plans mostly the UAE (DU, Etisalat); Worldwide plans partly Morocco (Maroc Telecom), the UAE and cheap networks elsewhere. By revenue: Italy, UAE, Morocco, Spain; the 8 networks with the most Yesim cost are DU, Etisalat, Iliad, Vodafone, Wind, TIM, Maroc Telecom and Movistar (checked by a test) |
 | Usage | 90 days, per plan per day per network (bytes). Yesterday's and today's charges **Estimated**; earlier **Final**; one day 3 days ago for reseller 2 still **Estimated** (late report) with a `usage_rating_late` alert |
 | Usage charges | One per hold per day, per-network lines with Yesim cost, markup, discount, price (admin view) |
 | Wallets | 6 reseller wallets + **house wallet**; balance, reserved, available, outstanding consistent with the holds (invariant checked by a test) |
@@ -121,7 +122,7 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Alert rules | 80% notify, 100% auto-suspend (admin) |
 | Notifications | ~15 per demo user, some unread |
 | Audit log | Built from the data: every user's last sign-in plus daily ones for our team, the Ishara lock-out, every sale and added plan, top-up decisions, markup changes and discounts with before/after, price list versions, assistant disabled, reseller suspended, PIN/PUK reveal; IPs from the documentation ranges (203.0.113.x our team, 198.51.100.x resellers) |
-| Inventory | Free = 23 today; going back, free = 23 + new eSIMs sold since − deliveries since. Two deliveries (STOCK-2026-03, STOCK-2026-04) sized so stock went below the warning (20) only once, the day the low-stock alert reports |
+| Inventory | Free = 57 today (about 3–4 days of stock at the last 30 days' sales, the same pace as the Inventory page, so the dashboard shows it amber); going back, free = 57 + new eSIMs sold since − deliveries since. Two deliveries (STOCK-2026-03, STOCK-2026-04) sized so stock went below the warning (20) only once, the day the low-stock alert reports |
 | Documents | Monthly statements per reseller for 3 months, top-up receipts, direct-sale invoices; sequential numbers per type and year (e.g. `ST-2026-0007`) |
 | Yesim connection | Status OK, reseller B2B_ENIGMA, sponsor SP05, network profile SP05_YESEN01, writes shown as disabled (read only), daily sale limit 50 (12 used today), total cap 500 (183 used); jobs derived from the clock (usage meter every 15 min, funding queue 5 min, order reconcile 10 min, nightly re-pricing 02:00, catalogue 03:00, price list every 6 h); "Sync now" records a run; latest notifications from recent eSIM activity; the balance check uses the same figures as Profit → Reconciliation |
 
@@ -132,7 +133,8 @@ Default markup for new resellers (setting): 25%. Retail markup for direct sales:
 | Yesim price versions | v12 (−130 days, starting prices), v13 (−74 days: Vodafone Italy −4%, one Greek network +6%), v14 (−32 days: TIM Italy +12%, Vodafone Spain −8%, Etisalat UAE +18%, NTT Docomo −6%, Orange France −5%, True Thailand +10%, Dialog Sri Lanka +7%, O2 Germany −9%). Today's catalogue price is v14; older prices are derived from it |
 | Markup history | Every reseller's starting markup from their sign-up day; Blue Horizon 12% → 15% (−50 days, 16:40), Nomad Connect 35% → 40% (−20 days, 16:40); each takes effect at the moment it was saved, so that day's usage is split; retail markup 60% for direct sales |
 | Usage lines | Per plan, day and network: about a third of days split 20–70% onto a second network in the same country, so a day can have two rates |
-| Supplier account | Deposits €2,500 / €2,000 / €2,000 / €1,500; the balance Yesim reports is €3.82 below what our records imply (tolerance €5) |
+| Supplier account | Four deposits (−95, −62, −30, −8 days), each covering the Yesim cost until the next one in round €500s, the last sized so the balance is about €5,000–5,500 (about a month of runway); the balance Yesim reports is €3.82 below what our records imply (tolerance €5) |
+| One formula | Dashboard, Profit and costs, wallets and statements all book money from the same rated lines (`lib/demo/booked.ts`): revenue = the cent-rounded reseller charge per package-day (retail for direct sales), split over that day's network lines; tests check the dashboard equals Profit and costs and the reseller's spend equals their ledger |
 | Statements | Last three full months per reseller; opening + top-ups − usage = closing, to the cent |
 
 ### 5.2 Accounts

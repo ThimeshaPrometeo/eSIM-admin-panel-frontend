@@ -25,6 +25,15 @@
   color-scheme: dark;
 
   --bg: #050a14; /* Midnight Ink */
+  /* Categorical chart series (validated for CVD and contrast on the dark card surface):
+     blue, orange, aqua, yellow, magenta, violet; "Other" is neutral. Green and red are left out (status). */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #9085e9;
+  --series-other: #64748b;
   --surface-1: #0a1322;
   --surface-2: #0f1b2e;
   --surface-3: #15243b;
@@ -83,6 +92,14 @@
   color-scheme: light;
 
   --bg: #f5f8fc;
+  /* same hues stepped for light surfaces; legends always carry the label and value too */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #6250d6;
+  --series-other: #94a3b8;
   --surface-1: #ffffff;
   --surface-2: #f0f4fa;
   --surface-3: #e6edf7;
@@ -896,3 +913,12 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* The rail's floating section panel (primary-rail.tsx): fades and slides in from the rail. */
+.nav-flyout { animation: nav-flyout-in 160ms var(--ease-out-expo) both; }
+@keyframes nav-flyout-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+/* The section column's width animation (app-shell.tsx). */
+.nav-column { transition: width 300ms var(--ease-in-out); }

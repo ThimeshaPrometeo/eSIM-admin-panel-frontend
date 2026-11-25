@@ -10,6 +10,7 @@ import { ApiError } from "./errors";
 import { CATALOGUE, NETWORK_BY_ID } from "@/lib/demo/catalogue";
 import type { DState } from "@/lib/demo/model";
 import { discountFor } from "@/lib/demo/pricing";
+import { forEachBookedLine } from "@/lib/demo/booked";
 import { forEachPackageDay, round2, type RatedLine } from "@/lib/demo/rating";
 import { read, write } from "@/lib/demo/run";
 import { priceListSyncedAt, supplierBalance } from "@/lib/demo/supplier";
@@ -150,6 +151,10 @@ const SETTING_LABEL: Record<string, string> = {
   houseWalletLowThreshold: "House wallet warning (€)",
   lowWalletThreshold: "Low wallet warning (€)",
   lowStockThreshold: "Low stock warning (eSIMs)",
+  supplierRunwayWarnDays: "Yesim balance runway warning (days)",
+  supplierRunwayCriticalDays: "Yesim balance runway critical (days)",
+  stockRunwayWarnDays: "Free eSIM runway warning (days)",
+  stockRunwayCriticalDays: "Free eSIM runway critical (days)",
   watermark: "PDF watermark",
   taxWording: "Tax wording",
 };
@@ -309,35 +314,27 @@ export const demoFinance = {
       let cost = 0;
       let mbTotal = 0;
       let est = 0;
-      forEachPackageDay(
+      // the same booked lines as the dashboard (lib/demo/booked): revenue per package-day, split over its network lines
+      forEachBookedLine(
         s,
-        (p, date, lines, charge, owner) => {
-          // revenue booked per package-day: the cent-rounded reseller charge, or the retail price for direct sales
-          const dayRevenue = owner === null ? lines.reduce((a, l) => a + l.revenue, 0) : charge;
-          const dayCost = lines.reduce((a, l) => a + l.cost, 0);
-          const dayMb = lines.reduce((a, l) => a + l.mb, 0);
-          revenue += dayRevenue;
-          cost += dayCost;
-          mbTotal += dayMb;
-          if (lines[0]!.estimated) est += dayRevenue;
-          w.cost += dayCost;
-          w.markup += lines.reduce((a, l) => a + l.markupAmount, 0);
-          const sl = series.get(bucketOf(date, period.granularity));
+        (l, p, owner) => {
+          revenue += l.booked;
+          cost += l.cost;
+          mbTotal += l.mb;
+          if (l.estimated) est += l.booked;
+          w.cost += l.cost;
+          w.markup += l.markupAmount;
+          const sl = series.get(bucketOf(l.date, period.granularity));
           if (sl) {
-            sl.revenue += dayRevenue;
-            sl.cost += dayCost;
+            sl.revenue += l.booked;
+            sl.cost += l.cost;
           }
-          add(byR, owner ?? "direct", dayMb, dayRevenue, dayCost);
-          add(byP, p.planId, dayMb, dayRevenue, dayCost);
-          // split the day's revenue over its network lines in proportion to each line's revenue
-          const lineRev = lines.reduce((a, l) => a + l.revenue, 0) || 1;
-          for (const l of lines) {
-            const share = l.revenue / lineRev;
-            add(byC, l.iso2, l.mb, dayRevenue * share, l.cost);
-            add(byN, l.networkId, l.mb, dayRevenue * share, l.cost);
-          }
+          add(byR, owner ?? "direct", l.mb, l.booked, l.cost);
+          add(byP, p.planId, l.mb, l.booked, l.cost);
+          add(byC, l.iso2, l.mb, l.booked, l.cost);
+          add(byN, l.networkId, l.mb, l.booked, l.cost);
         },
-        { packages: (_p, owner) => (!opts.resellerId ? true : opts.resellerId === "direct" ? owner === null : owner === opts.resellerId), from: period.from, to: period.to },
+        { resellerId: opts.resellerId ?? null, from: period.from, to: period.to },
       );
       // the waterfall closes exactly: discount = Yesim cost + markup − revenue (revenue is cent-rounded per day)
       w.discount = w.cost + w.markup - revenue;
@@ -499,6 +496,9 @@ export const demoFinance = {
       requireRole(c, "admin");
       const st = c.s.settings;
       const changed: string[] = [];
+      const after = { ...st, ...input };
+      if (after.supplierRunwayCriticalDays >= after.supplierRunwayWarnDays || after.stockRunwayCriticalDays >= after.stockRunwayWarnDays)
+        throw new ApiError(400, "RUNWAY_THRESHOLDS", "The critical number of days must be below the warning.");
       // a new retail markup applies to usage from the moment it's saved; the history keeps the earlier rate
       if (input.retailMarkupPercent !== undefined && input.retailMarkupPercent !== st.retailMarkupPercent)
         c.s.markupHistory.push({
@@ -539,6 +539,10 @@ function settingsView(c: Caller): TenantSettings {
     houseWalletLowThreshold: st.houseWalletLowThreshold,
     lowWalletThreshold: st.lowWalletThreshold,
     lowStockThreshold: st.lowStockThreshold,
+    supplierRunwayWarnDays: st.supplierRunwayWarnDays,
+    supplierRunwayCriticalDays: st.supplierRunwayCriticalDays,
+    stockRunwayWarnDays: st.stockRunwayWarnDays,
+    stockRunwayCriticalDays: st.stockRunwayCriticalDays,
     watermark: { ...st.watermark },
     taxWording: st.taxWording,
     mfaRequired: true,

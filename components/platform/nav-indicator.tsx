@@ -15,7 +15,8 @@ export function NavIndicatorList({ children, className, indicatorClassName, watc
     const el = ref.current;
     if (!el) return;
     const measure = () => {
-      const active = el.querySelector<HTMLElement>('[aria-current="page"]');
+      // links mark the current page; section buttons in the rail mark the current section
+      const active = el.querySelector<HTMLElement>('[aria-current="page"], [data-current]');
       setBox(active ? { y: active.offsetTop, h: active.offsetHeight, x: active.offsetLeft, w: active.offsetWidth } : null);
     };
     measure();

@@ -7,7 +7,7 @@ import type { Grants } from "@/lib/platform/permission-matrix";
 import type { EsimStatus, HoldStatus, InstallStatus, OrderStatus, SuspendedBy, TopupStatus } from "@/lib/platform/status";
 import type { AlertType, LedgerType, Role } from "@/lib/platform/types";
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 15;
 
 export type DUser = {
   id: string;
@@ -275,6 +275,11 @@ export type DSettings = {
   taxWording: string;
   lowWalletThreshold: number;
   lowStockThreshold: number;
+  /** Dashboard runway colours: amber below the warning, red below the critical number of days. */
+  supplierRunwayWarnDays: number;
+  supplierRunwayCriticalDays: number;
+  stockRunwayWarnDays: number;
+  stockRunwayCriticalDays: number;
   dailySaleLimit: number;
   saleCap: number;
   freeStock: number;

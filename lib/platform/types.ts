@@ -427,6 +427,100 @@ export type DashboardData = {
   recentCountries: string[];
 };
 
+// ------------------------------------------------------------ dashboard overview (spec 8.1, redesign 2026-11)
+
+/** Dashboard filters. Country, network and plan narrow the usage lines; the reseller narrows everything. */
+export type OverviewQuery = {
+  from: string;
+  to: string;
+  granularity: "day" | "month" | "year";
+  /** Deltas against the period of the same length just before. */
+  compare: boolean;
+  resellerId?: string | null;
+  iso2?: string | null;
+  networkId?: string | null;
+  planId?: string | null;
+};
+
+/** A figure and the same figure in the previous period (null when not comparing). */
+export type Trend = { value: number; previous: number | null };
+
+/** Amber below the warning, red below the critical threshold (Settings). */
+export type RunwayLevel = "ok" | "warning" | "critical";
+
+export type AttentionItem = {
+  key: "topups" | "plans_waiting" | "orders_checking" | "low_stock" | "low_runway" | "unpriced_usage" | "late_reports" | "low_balance" | "outstanding";
+  label: string;
+  count: number;
+  /** The filtered page that lists them. */
+  href: string;
+  tone: "info" | "warning" | "danger";
+  detail?: string;
+};
+
+export type OverviewBucket = { bucket: string; bytes: number; estimated: boolean };
+
+/** A recent event for the dashboard's live feed and globe arcs. */
+export type LiveEvent = { id: string; at: string; iso2: string; country: string; kind: "sale" | "in_use"; text: string };
+
+/** What the filters can choose from: everything with usage in the viewer's scope (not narrowed by the other filters). */
+export type OverviewOptions = { countries: { iso2: string; name: string }[]; networks: { id: string; label: string }[]; plans: { id: string; name: string }[] };
+
+/** Admin and staff: the business in one screen (profit_reports needed for money). */
+export type TenantOverview = {
+  scope: "tenant";
+  /** Can see revenue, cost and profit (profit_reports). Without it every money figure is 0 and hidden. */
+  money: boolean;
+  kpis: {
+    revenue: Trend;
+    cost: Trend;
+    profit: Trend;
+    marginPercent: Trend;
+    bytes: Trend;
+    /** eSIMs that used data in the period. */
+    activeEsims: Trend;
+    supplier: { balance: number; avgDailyCost: number; runwayDays: number | null; level: RunwayLevel; warnDays: number; criticalDays: number };
+    stock: { free: number; avgDailySales: number; daysLeft: number | null; level: RunwayLevel; warnDays: number; criticalDays: number };
+  };
+  /** Revenue = Yesim cost + profit, per bucket; `previousRevenue` when comparing. */
+  series: (OverviewBucket & { revenue: number; cost: number; profit: number; previousRevenue: number | null })[];
+  attention: AttentionItem[];
+  countries: { iso2: string; name: string; revenue: number; cost: number; profit: number; bytes: number; marginPercent: number }[];
+  networks: { id: string; operator: string; iso2: string; country: string; revenue: number; cost: number; profit: number; bytes: number }[];
+  resellers: { id: string; name: string; revenue: number; profit: number; marginPercent: number; trend: number | null; available: number | null; outstanding: number | null }[];
+  plans: { id: string; name: string; sold: number; active: number; revenue: number; profit: number; avgBytesPerEsim: number }[];
+  options: OverviewOptions;
+  /** The most recent sales and eSIM activity in scope, newest first. */
+  live: LiveEvent[];
+  /** When this answer was computed (ISO), for "updated … ago". */
+  generatedAt: string;
+};
+
+/** Resellers and assistants: their own scope, priced at their price. Never Yesim cost, markup or profit. */
+export type ResellerOverview = {
+  scope: "reseller";
+  kpis: {
+    spend: Trend;
+    bytes: Trend;
+    activeEsims: Trend;
+    customers: number;
+    wallet: { available: number; outstanding: number; avgDailySpend: number; runwayDays: number | null; level: RunwayLevel; lowThreshold: number };
+  };
+  series: (OverviewBucket & { spend: number; previousSpend: number | null })[];
+  attention: AttentionItem[];
+  countries: { iso2: string; name: string; spend: number; bytes: number }[];
+  networks: { id: string; operator: string; iso2: string; country: string; spend: number; bytes: number }[];
+  plans: { id: string; name: string; sold: number; active: number; spend: number; avgBytesPerEsim: number }[];
+  customers: { id: string; name: string; esims: number; spend: number; bytes: number }[];
+  options: OverviewOptions;
+  /** The most recent sales and eSIM activity in scope, newest first. */
+  live: LiveEvent[];
+  /** When this answer was computed (ISO), for "updated … ago". */
+  generatedAt: string;
+};
+
+export type Overview = TenantOverview | ResellerOverview;
+
 export type CoverageCountry = {
   iso2: string;
   name: string;
@@ -640,6 +734,12 @@ export type TenantSettings = {
   houseWalletLowThreshold: number;
   lowWalletThreshold: number;
   lowStockThreshold: number;
+  /** Days of Yesim balance left at current spend: amber below the warning, red below the critical. */
+  supplierRunwayWarnDays: number;
+  supplierRunwayCriticalDays: number;
+  /** Days of free eSIMs left at current sales: amber below the warning, red below the critical. */
+  stockRunwayWarnDays: number;
+  stockRunwayCriticalDays: number;
   watermark: Record<"statement" | "receipt" | "invoice" | "usage_report" | "price_list", boolean>;
   taxWording: string;
   mfaRequired: boolean;

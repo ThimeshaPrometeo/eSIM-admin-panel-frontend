@@ -2,7 +2,7 @@
 
 import { FitPage } from "@/components/platform/fit-page";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { FileDown, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -28,13 +28,19 @@ const STATUS_OPTIONS = [
   { value: "INACTIVE", label: "Inactive" },
 ] as const;
 const INSTALL_OPTIONS: InstallStatus[] = ["not_installed", "downloaded", "installed", "enabled", "disabled", "unknown"];
-const PLAN_STATE_OPTIONS: (PlanState | "blocked")[] = ["active", "pending_first_use", "awaiting_funds", "blocked", "expired"];
+const PLAN_STATE_OPTIONS: (PlanState | "blocked" | "needs_funds")[] = ["active", "pending_first_use", "awaiting_funds", "blocked", "needs_funds", "expired"];
+const PLAN_STATE_EXTRA: Record<string, string> = { blocked: "Blocked", needs_funds: "Awaiting funds or blocked" };
 
 /** eSIM list (spec 8.2). Resellers and assistants see only their own eSIMs. */
 export function EsimsClient() {
   const router = useRouter();
   const { me, isTenant, rules } = usePermission();
-  const [f, setF] = useState<EsimFilters>({});
+  const params = useSearchParams();
+  // ?planState= from a dashboard link
+  const [f, setF] = useState<EsimFilters>(() => {
+    const ps = params.get("planState") as EsimFilters["planState"];
+    return ps && PLAN_STATE_OPTIONS.includes(ps) ? { planState: ps } : {};
+  });
   const set = (patch: Partial<EsimFilters>) => setF((x) => ({ ...x, ...patch }));
   const { data, loading, error } = useResource(() => esimsApi.listEsims(f), [f]);
   const plans = useResource(() => catalogueApi.listPlansCatalogue(), ["catalogue"]);
@@ -93,7 +99,7 @@ export function EsimsClient() {
             <SearchInput value={f.q ?? ""} onChange={(q) => set({ q })} placeholder="Search ICCID or customer" />
             <FilterSelect label="Status" value={f.status ?? null} onChange={(status) => set({ status })} all="Any status" options={STATUS_OPTIONS.map((o) => ({ ...o }))} className="sm:w-40" />
             <FilterSelect label="Install status" value={f.installStatus ?? null} onChange={(installStatus) => set({ installStatus })} all="Any install status" options={INSTALL_OPTIONS.map((s) => ({ value: s, label: s === "unknown" ? "Other" : installStatus(s).label }))} className="sm:w-44" />
-            <FilterSelect label="Plan state" value={f.planState ?? null} onChange={(planState) => set({ planState })} all="Any plan state" options={PLAN_STATE_OPTIONS.map((s) => ({ value: s, label: s === "blocked" ? "Blocked" : PLAN_STATE[s].label }))} className="sm:w-44" />
+            <FilterSelect label="Plan state" value={f.planState ?? null} onChange={(planState) => set({ planState })} all="Any plan state" options={PLAN_STATE_OPTIONS.map((s) => ({ value: s, label: PLAN_STATE_EXTRA[s] ?? PLAN_STATE[s as PlanState].label }))} className="sm:w-44" />
             <FilterSelect
               label="Plan"
               value={f.planId ?? null}

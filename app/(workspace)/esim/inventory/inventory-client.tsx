@@ -27,8 +27,8 @@ export function InventoryClient() {
       <GlassCard className="grid shrink-0 grid-cols-2 gap-6 sm:grid-cols-4">
         <StatBlock size="sm" label="Free now" value={data?.free ?? 0} format={(n) => String(n)} loading={!data} hint={data ? `Warning below ${data.threshold}` : undefined} />
         <StatBlock size="sm" label="Assigned" value={data?.assigned ?? 0} format={(n) => String(n)} loading={!data} hint="All eSIMs sold so far" />
-        <StatBlock size="sm" label="New eSIMs, last 30 days" value={data?.sold30d ?? 0} format={(n) => String(n)} loading={!data} hint={data ? `About ${perDay.toLocaleString("en-GB", { maximumFractionDigits: 1 })} a day` : undefined} />
-        <StatBlock size="sm" label="Lasts at this pace" value={daysLeft ?? 0} format={(n) => (daysLeft === null ? "—" : `${n} days`)} loading={!data} hint="Free ÷ the last 30 days' daily sales" />
+        <StatBlock size="sm" label="New eSIMs, last 30 days" value={data?.sold30d ?? 0} format={(n) => String(Math.round(n))} loading={!data} hint={data ? `About ${perDay.toLocaleString("en-GB", { maximumFractionDigits: 1 })} a day` : undefined} />
+        <StatBlock size="sm" label="Lasts at this pace" value={daysLeft ?? 0} format={(n) => (daysLeft === null ? "—" : `${Math.round(n)} days`)} loading={!data} hint="Free ÷ the last 30 days' daily sales" />
       </GlassCard>
       {data ? (
         <div

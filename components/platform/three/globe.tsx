@@ -40,6 +40,17 @@ export type GlobeProps = {
   /** ISO2 codes of covered countries. */
   lit?: string[];
   /**
+   * Brightness per country (0–1), e.g. usage: overrides `lit` and `landTone`;
+   * countries without a weight stay dim.
+   */
+  weights?: Record<string, number>;
+  /**
+   * Keep it alive (dashboard): drawing and spinning while on screen, never
+   * dropping to on-demand rendering when the pointer is away; after a drag
+   * the spin resumes on its own unless a country is focused.
+   */
+  live?: boolean;
+  /**
    * "coverage": covered countries lit, others dim (coverage page).
    * "all": all land lit (sign-in hero, dashboard).
    */
@@ -330,6 +341,7 @@ const CYCLE = 4.2; // seconds per arc pulse + ripple
 function GlobeScene({
   mode,
   lit = [],
+  weights,
   landTone = mode === "interactive" ? "coverage" : "all",
   oceanDots = false,
   orbit = false,
@@ -345,6 +357,7 @@ function GlobeScene({
   pins = [],
   spin,
   draggable = false,
+  live = false,
   palette,
   theme,
   reduced,
@@ -361,6 +374,14 @@ function GlobeScene({
   const drag = useRef<{ x: number; y: number; t: number } | null>(null);
   const focusTween = useRef<gsap.core.Tween | null>(null);
   const autoSpin = useRef(mode !== "interactive" || !focusCountry);
+  const focusNow = useRef(focusCountry);
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    focusNow.current = focusCountry;
+  });
+  useEffect(() => () => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+  }, []);
   const clock = useRef(0);
 
   // ---- land dots
@@ -369,15 +390,21 @@ function GlobeScene({
 
   useEffect(() => {
     const litSet = new Set(lit.map((c) => countryIndex.get(c.toUpperCase())).filter((x): x is number => x !== undefined));
+    const byIndex = weights
+      ? new Map(Object.entries(weights).flatMap(([iso, w]) => {
+          const i = countryIndex.get(iso.toUpperCase());
+          return i === undefined ? [] : [[i, Math.max(0, Math.min(1, w))] as const];
+        }))
+      : null;
     const attr = geometry.getAttribute("aLit") as THREE.BufferAttribute;
     const country = geometry.getAttribute("aCountry") as THREE.BufferAttribute;
     for (let i = 0; i < attr.count; i++) {
       const c = country.getX(i);
-      attr.setX(i, c >= 0 && (landTone === "all" || litSet.has(c)) ? 1 : 0);
+      attr.setX(i, c < 0 ? 0 : byIndex ? (byIndex.get(c) ?? 0) : landTone === "all" || litSet.has(c) ? 1 : 0);
     }
     attr.needsUpdate = true;
     invalidate();
-  }, [lit, landTone, geometry, countryIndex, invalidate]);
+  }, [lit, weights, landTone, geometry, countryIndex, invalidate]);
 
   const materials = useMemo(() => {
     const dots = new THREE.ShaderMaterial({
@@ -498,7 +525,14 @@ function GlobeScene({
 
   // ---- rotate to a country (gsap, movement easing)
   useEffect(() => {
-    if (!focusCountry) return;
+    if (!focusCountry) {
+      // focus cleared: a live globe starts turning again
+      if (live) {
+        autoSpin.current = true;
+        invalidate();
+      }
+      return;
+    }
     const target = MASK_DATA.centroids[focusCountry.toUpperCase()];
     if (!target) return;
     autoSpin.current = false;
@@ -523,7 +557,7 @@ function GlobeScene({
     return () => {
       focusTween.current?.kill();
     };
-  }, [focusCountry, reduced, invalidate, onActivity]);
+  }, [focusCountry, reduced, invalidate, onActivity, live]);
 
   // ---- arcs: surface-hugging great circles, gradient, pulse + ripple
   const arcPaths = useMemo(() => {
@@ -726,6 +760,7 @@ function GlobeScene({
       drag.current = { x: e.clientX, y: e.clientY, t: performance.now() };
       downAt.current = { x: e.clientX, y: e.clientY };
       autoSpin.current = false;
+      if (resumeTimer.current) clearTimeout(resumeTimer.current);
       focusTween.current?.kill();
       el.style.cursor = "grabbing";
       onActivity();
@@ -809,6 +844,13 @@ function GlobeScene({
     // drag-to-rotate ends spinning only in interactive mode; the hero resumes its spin
     const resume = () => {
       if (!interactive) autoSpin.current = true;
+      // a live interactive globe picks its spin up again a moment after the drag, unless a country is in focus
+      else if (live) {
+        if (resumeTimer.current) clearTimeout(resumeTimer.current);
+        resumeTimer.current = setTimeout(() => {
+          if (!focusNow.current) autoSpin.current = true;
+        }, 3500);
+      }
     };
     el.addEventListener("pointerup", resume);
     el.addEventListener("pointermove", onMove);
@@ -831,7 +873,7 @@ function GlobeScene({
       el.removeEventListener("pointerleave", onLeave);
       el.removeEventListener("wheel", onWheel);
     };
-  }, [gl, camera, mode, draggable, raycaster, sphere, countryIndex, materials, onSelectCountry, onHoverCountry, invalidate, reduced, onActivity]);
+  }, [gl, camera, mode, draggable, raycaster, sphere, countryIndex, materials, onSelectCountry, onHoverCountry, invalidate, reduced, onActivity, live]);
 
   // ---- frame loop
   const azure = useMemo(() => new THREE.Color(palette.primary), [palette]);
@@ -1002,6 +1044,7 @@ function GlobeScene({
 // ------------------------------------------------------------------ canvas --
 
 export default function Globe({ className, mode = "hero", tokens, ...props }: GlobeProps) {
+  const live = !!props.live;
   const host = useRef<HTMLDivElement>(null);
   const theme = useClosestTheme(host);
   const reduced = useReducedMotion();
@@ -1021,9 +1064,9 @@ export default function Globe({ className, mode = "hero", tokens, ...props }: Gl
   const armIdle = useMemo(
     () => () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
-      if (mode !== "hero") idleTimer.current = setTimeout(() => setIdle(true), 12000);
+      if (mode !== "hero" && !live) idleTimer.current = setTimeout(() => setIdle(true), 12000);
     },
-    [mode],
+    [mode, live],
   );
   const onActivity = useMemo(
     () => () => {

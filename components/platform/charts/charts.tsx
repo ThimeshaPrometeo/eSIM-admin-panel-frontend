@@ -13,11 +13,11 @@ import {
   Pie,
   PieChart,
   ReferenceLine,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartBox } from "./chart-box";
 import { AXIS, ChartDefs, ChartFrame, GlassTooltip, GRID, SERIES } from "./chart-kit";
 
 /*
@@ -70,7 +70,7 @@ export function UsageAreaChart({
       ]}
     >
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <AreaChart data={data} margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
@@ -108,7 +108,7 @@ export function UsageAreaChart({
               activeDot={{ r: 4, fill: "var(--warning)", stroke: "var(--bg)", strokeWidth: 2 }}
             />
           </AreaChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -120,7 +120,7 @@ export function MonthlyBarChart({ data, unit = "GB" }: { data: { label: string; 
   return (
     <ChartFrame title="Monthly usage" description={`Data used per month, ${unit}`}>
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <BarChart data={data} margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
@@ -129,7 +129,7 @@ export function MonthlyBarChart({ data, unit = "GB" }: { data: { label: string; 
             <Tooltip cursor={{ fill: "var(--surface-3)", opacity: 0.4 }} content={<GlassTooltip format={(v) => `${plain(v)} ${unit}`} />} />
             <Bar dataKey="value" name="Usage" fill={`url(#${id}-bar-primary)`} radius={[8, 8, 3, 3]} maxBarSize={36} isAnimationActive={animate} animationDuration={duration} />
           </BarChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -154,7 +154,7 @@ export function StatusDonut({
     <ChartFrame title="eSIM status" legend={data.map((d) => ({ label: d.label, color: SERIES[d.tone] }))}>
       {({ animate, duration }) => (
         <div className="relative h-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ChartBox>
             <PieChart>
               <Tooltip content={<GlassTooltip format={(v) => `${plain(v)} eSIMs`} />} />
               <Pie
@@ -174,7 +174,7 @@ export function StatusDonut({
                 ))}
               </Pie>
             </PieChart>
-          </ResponsiveContainer>
+          </ChartBox>
           <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
             <div>
               <p className="text-[28px] font-semibold leading-8 tabular">{plain(total)}</p>
@@ -193,7 +193,7 @@ export function PlansSoldChart({ data }: { data: { label: string; value: number 
   return (
     <ChartFrame title="Plans sold" description="Count per plan">
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <BarChart data={data} layout="vertical" margin={{ top: 0, right: 12, left: 4, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid stroke="var(--grid-line)" horizontal={false} />
@@ -202,7 +202,7 @@ export function PlansSoldChart({ data }: { data: { label: string; value: number 
             <Tooltip cursor={{ fill: "var(--surface-3)", opacity: 0.4 }} content={<GlassTooltip format={(v) => `${plain(v)} sold`} />} />
             <Bar dataKey="value" name="Sold" fill={`url(#${id}-hbar-accent)`} radius={[3, 8, 8, 3]} maxBarSize={16} isAnimationActive={animate} animationDuration={duration} />
           </BarChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -225,7 +225,7 @@ export function TransactionsChart({ data }: { data: { label: string; credits: nu
       ]}
     >
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <ComposedChart data={data} margin={{ top: 8, right: 0, left: -4, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
@@ -247,7 +247,7 @@ export function TransactionsChart({ data }: { data: { label: string; credits: nu
               animationDuration={duration}
             />
           </ComposedChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -267,7 +267,7 @@ export function TopEsimsBar({
   return (
     <ChartFrame title="Top 10 eSIMs by usage" description="Click a bar to open the eSIM" height={320}>
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <BarChart data={data} layout="vertical" margin={{ top: 0, right: 12, left: 8, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid stroke="var(--grid-line)" horizontal={false} />
@@ -292,7 +292,7 @@ export function TopEsimsBar({
               animationDuration={duration}
             />
           </BarChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -304,7 +304,7 @@ export function CountryBar({ data, unit = "GB" }: { data: { label: string; value
   return (
     <ChartFrame title="Usage by country" description={`Top countries, ${unit}`}>
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <BarChart data={data} margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
@@ -313,7 +313,7 @@ export function CountryBar({ data, unit = "GB" }: { data: { label: string; value
             <Tooltip cursor={{ fill: "var(--surface-3)", opacity: 0.4 }} content={<GlassTooltip format={(v) => `${plain(v)} ${unit}`} />} />
             <Bar dataKey="value" name="Usage" fill={`url(#${id}-bar-primary)`} radius={[8, 8, 3, 3]} maxBarSize={28} isAnimationActive={animate} animationDuration={duration} />
           </BarChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -333,7 +333,7 @@ export function RevenueProfitChart({ data }: { data: { label: string; revenue: n
       ]}
     >
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <ComposedChart data={data} margin={{ top: 8, right: 4, left: -4, bottom: 0 }} barGap={3}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
@@ -356,7 +356,7 @@ export function RevenueProfitChart({ data }: { data: { label: string; revenue: n
               animationBegin={duration * 0.4}
             />
           </ComposedChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -380,7 +380,7 @@ export function WaterfallChart({ data, title = "From Yesim cost to profit", desc
   return (
     <ChartFrame title={title} description={description ?? "EUR in the period; revenue = Yesim cost + markup − discounts"}>
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <BarChart data={steps} margin={{ top: 22, right: 4, left: -4, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
@@ -415,7 +415,7 @@ export function WaterfallChart({ data, title = "From Yesim cost to profit", desc
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );
@@ -435,7 +435,7 @@ export function StockChart({ data, threshold }: { data: { label: string; free: n
       ]}
     >
       {({ animate, duration }) => (
-        <ResponsiveContainer width="100%" height="100%">
+        <ChartBox>
           <ComposedChart data={data} margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
             <ChartDefs id={id} />
             <CartesianGrid {...GRID} />
@@ -446,7 +446,7 @@ export function StockChart({ data, threshold }: { data: { label: string; free: n
             <Area type="stepAfter" dataKey="free" name="Free" stroke={SERIES.accent} strokeWidth={2} fill={`url(#${id}-fill-accent)`} isAnimationActive={animate} animationDuration={duration} dot={false} />
             <Line type="monotone" dataKey="assigned" name="Assigned" stroke={SERIES.primary} strokeWidth={2} dot={false} filter={`url(#${id}-glow)`} isAnimationActive={animate} animationDuration={duration} />
           </ComposedChart>
-        </ResponsiveContainer>
+        </ChartBox>
       )}
     </ChartFrame>
   );

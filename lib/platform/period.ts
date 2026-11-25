@@ -1,11 +1,11 @@
 /**
- * Periods for reports (spec 8.1): today, 7 days, 30 days, this month, this
- * year, custom; grouped by day, month or year. Dates are calendar dates
+ * Periods for reports (spec 8.1): today, 7 days, 30 days, this month, last
+ * month, this year, custom; grouped by day, month or year. Dates are calendar dates
  * (YYYY-MM-DD) in the user's time zone, inclusive.
  */
 import { addDays, dateInZone, daysBetween, DEFAULT_TIME_ZONE } from "./dates";
 
-export type PeriodPreset = "today" | "7d" | "30d" | "month" | "year" | "custom";
+export type PeriodPreset = "today" | "7d" | "30d" | "month" | "last_month" | "year" | "custom";
 export type Granularity = "day" | "month" | "year";
 export type Period = { preset: PeriodPreset; from: string; to: string; granularity: Granularity };
 
@@ -14,6 +14,7 @@ export const PERIOD_LABELS: Record<PeriodPreset, string> = {
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   month: "This month",
+  last_month: "Last month",
   year: "This year",
   custom: "Custom range",
 };
@@ -29,6 +30,10 @@ export function periodFor(preset: Exclude<PeriodPreset, "custom">, now: Date = n
       return { preset, from: addDays(today, -29), to: today, granularity: "day" };
     case "month":
       return { preset, from: `${today.slice(0, 8)}01`, to: today, granularity: "day" };
+    case "last_month": {
+      const lastDay = addDays(`${today.slice(0, 8)}01`, -1);
+      return { preset, from: `${lastDay.slice(0, 8)}01`, to: lastDay, granularity: "day" };
+    }
     case "year":
       return { preset, from: `${today.slice(0, 5)}01-01`, to: today, granularity: "month" };
   }

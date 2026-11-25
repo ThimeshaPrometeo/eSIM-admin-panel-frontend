@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,19 +23,31 @@ import { exportCsv, exportPdf } from "@/lib/exports";
 import { countryFlag } from "@/lib/platform/coverage";
 import { formatAxisDate, formatDate } from "@/lib/platform/dates";
 import { formatMoney } from "@/lib/platform/money";
-import { periodFor, PERIOD_LABELS, type Period } from "@/lib/platform/period";
+import { customPeriod, periodFor, PERIOD_LABELS, type Period } from "@/lib/platform/period";
 import type { UsageReport, UsageReportRow } from "@/lib/platform/types";
 import { formatBytes, toUnit, type DataUnit } from "@/lib/platform/units";
 
 const round = (n: number) => Math.round(n * 100) / 100;
+const isTenantParam = (v: string | null) => !!v && /^[a-z0-9-]{1,40}$/i.test(v);
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+function periodFromParams(params: URLSearchParams): Period | null {
+  const from = params.get("from");
+  const to = params.get("to");
+  return from && to && DATE.test(from) && DATE.test(to) ? customPeriod(from, to) : null;
+}
 
 /** Usage (spec 8.7): data and cost per eSIM in a period. Admin/staff see everyone; resellers their own eSIMs. */
 export function UsageClient() {
   const { me, isTenant } = usePermission();
-  const [period, setPeriod] = useState<Period>(() => ({ ...periodFor("30d"), granularity: "day" }));
-  const [resellerId, setResellerId] = useState<string | null>(null);
+  // ?country=, ?from=&to=, ?reseller= from a dashboard link
+  const params = useSearchParams();
+  const [period, setPeriod] = useState<Period>(() => periodFromParams(params) ?? { ...periodFor("30d"), granularity: "day" });
+  const [resellerId, setResellerId] = useState<string | null>(() => (isTenantParam(params.get("reseller")) ? params.get("reseller") : null));
   const [planId, setPlanId] = useState<string | null>(null);
-  const [iso2, setIso2] = useState<string | null>(null);
+  const [iso2, setIso2] = useState<string | null>(() => {
+    const c = params.get("country")?.toUpperCase();
+    return c && /^[A-Z]{2}$/.test(c) ? c : null;
+  });
   const [unit, setUnit] = useState<DataUnit>("GB");
   const { data, loading, error } = useResource(
     () => operationsApi.getUsageReport(period, { resellerId, planId, iso2 }),

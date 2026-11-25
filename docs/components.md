@@ -22,9 +22,10 @@ input-otp.
 
 | Component | Source | Notes |
 |---|---|---|
-| `AppShell` | adapt `telephony/app-shell.tsx` | Rail + secondary column (lg+), glass top bar below lg, skip link, `<AmbientBackground>` behind content. No module accent colours (we have one accent) |
-| `PrimaryRail` | adapt `telephony/primary-rail.tsx` | Sections with icons, group dividers, hover-to-preview a section, gliding active indicator, glass |
-| `SecondaryColumn` | adapt `telephony/secondary-column.tsx` | Tabs of the active/hovered section |
+| `AppShell` | adapt `telephony/app-shell.tsx` | Rail + secondary column (lg+), glass top bar with a "Section / Page" breadcrumb (`nav[aria-label=Breadcrumb]`), skip link, `<AmbientBackground>` behind content; content up to 1600px wide. The column exists only for sections with more than one tab; it collapses with its button or "[" (not while typing), remembered per user in this browser (`lib/platform/nav-layout.ts`), collapsed by default below 1440px. Its width animates over 300ms (weighted ease); meanwhile `<html data-nav-resizing>` tells charts to hold their size, and `nav:resized` makes them measure once at the end. No module accent colours (we have one accent)
+| `PrimaryRail` | adapt `telephony/primary-rail.tsx` | Sections with icons, gliding active indicator, glass. Single-tab sections: the icon goes straight to the page. Multi-tab sections with the column open: the icon goes to the first tab and hovering previews the tabs in the column. Otherwise (column collapsed, or a page without one): hovering (140ms delay, closes 220ms after leaving) or clicking opens the tabs in a floating glass panel; Enter/Space/→ open it with focus on the first link, ↑/↓/Home/End move, Escape closes and returns focus, choosing a page closes it. An expand button appears under the icons while the column is collapsed |
+| `SecondaryColumn` | adapt `telephony/secondary-column.tsx` | Tabs of the active/hovered section, with a collapse button at the top; inert while collapsed |
+| `ChartBox` | `charts/chart-box.tsx` | Sizes a Recharts chart to its box (replaces `ResponsiveContainer`); holds its size while the section column animates and re-measures once when it ends |
 | `MobileBottomNav`, `MobileSecondaryNav` | adapt `telephony/mobile-bottom-nav.tsx`, `mobile-secondary-nav.tsx` | Same breakpoints and clearance variable as the SIP panel |
 | `UserMenu` | adapt `telephony/user-menu.tsx` | + role switcher and "Reset demo data" (demo) |
 | `NotificationBell` | adapt `telephony/notification-bell.tsx` | |
@@ -95,7 +96,16 @@ rounded bar ends; draw-in once. Colours from tokens. Structure adapted from `tel
 | `TransactionsChart` | grouped bar (credits Emerald vs debits Azure) | dashboard |
 | `TopEsimsBar` | horizontal bar, clickable | dashboard |
 | `CountryBar` | bar | dashboard, usage |
-| `RevenueProfitChart` | bar + glowing line | dashboard (profit_reports) |
+| `RevenueProfitChart` | bar + glowing line | Profit and costs |
+| `TrendChart` | bars on one axis: one measure (data used, spend) or two stacked parts that add up to a whole (Yesim cost + profit = revenue, legend under the chart); dashed daily-average line and an "avg … · best …" subtitle; estimated days faded with a "What's estimated?" explanation; charts with the same `syncId` hover together; bars animate only on first draw; click a bar → that day | dashboard |
+| `DonutCard` | donut (6 items + Other, total in the centre) over a two-column legend with shares; colours follow the entity via `colorMap` on the `--series-1…6` tokens (validated with the dataviz script, both themes); both network donuts show the same six networks so a network keeps its colour; hover highlights | dashboard |
+| `LiveGlobeCard` | `LiveGlobe` (interactive + `live`: keeps drawing and spinning while on screen, the spin resumes ~3.5 s after a drag unless a country is in focus) with countries glowing by the chosen measure (`weights`), arcs from home to the latest activity and "Updated … ago". Clicking a country with usage focuses the whole dashboard on it (country filter): the globe turns to it and a spotlight strip replaces the feed with its figures, "Usage" and "Show all countries"; "Top countries" becomes "Networks in …" (selecting a network narrows further). The dashboard polls every minute quietly (`useResource` `pollMs`, unchanged parts keep their identity) and keeps the previous figures, dimmed, while a filter change loads (`keepPrevious`) | dashboard |
+
+Dashboard pieces (`components/platform/overview-view.tsx`): `OverviewFilterBar` (period presets, time zone, compare toggle,
+Filters popover with reseller / country / network / plan; Clear), slim `KpiTile` (label + trend, value + note, status
+colour from Settings for the runway tiles), `TopCountriesCard` (ranked with bars; selecting one turns the globe to it),
+`TabbedCard` (Needs attention | Plans | Resellers, or Customers for resellers) with `AttentionList` and `MiniTable`.
+Layout: 7 KPIs (resellers 6), then [Live globe | Data used | Money], then [Networks · data | Networks · cost | Top countries | tabs].
 
 ## 7. Domain components (built with their pages)
 

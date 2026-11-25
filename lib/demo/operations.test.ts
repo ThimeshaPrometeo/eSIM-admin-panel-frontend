@@ -23,7 +23,9 @@ describe("operations", () => {
     const ledger = round2(-s.ledger.filter((l) => l.walletId === "w-r1" && l.type === "usage_charge" && l.reference.slice(3) >= from).reduce((a, l) => a + l.amount, 0));
     expect(r.totals.charge).toBeCloseTo(ledger, 2);
     expect(r.series.reduce((a, b) => a + b.finalBytes + b.estimatedBytes, 0)).toBeCloseTo(r.totals.bytes, 0);
-    expect(r.rows.every((x) => x.yesimCost !== null && x.yesimCost < x.charge)).toBe(true);
+    // never charged below Yesim cost (tiny rows can round to the same cent)
+    expect(r.rows.every((x) => x.yesimCost !== null && x.yesimCost <= x.charge)).toBe(true);
+    expect(r.totals.yesimCost!).toBeLessThan(r.totals.charge);
   });
 
   it("resellers see only their own usage, without Yesim cost", async () => {

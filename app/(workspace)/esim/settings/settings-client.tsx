@@ -59,6 +59,14 @@ function SettingsForm({ initial, readOnly }: { initial: TenantSettings; readOnly
         <Section title="Stock" description="Free eSIMs in the supplier pool.">
           <NumberField label="Low stock warning below" suffix="eSIMs" value={v.lowStockThreshold} onChange={num("lowStockThreshold")} readOnly={readOnly} />
         </Section>
+        <Section title="Runway on the dashboard" description="How long the Yesim balance and the free eSIMs last at the current pace (average of the last 7 days). Amber below the warning, red below the critical number.">
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField label="Yesim balance: warning below" suffix="days" value={v.supplierRunwayWarnDays} onChange={num("supplierRunwayWarnDays")} readOnly={readOnly} />
+            <NumberField label="Critical below" suffix="days" value={v.supplierRunwayCriticalDays} onChange={num("supplierRunwayCriticalDays")} readOnly={readOnly} />
+            <NumberField label="Free eSIMs: warning below" suffix="days" value={v.stockRunwayWarnDays} onChange={num("stockRunwayWarnDays")} readOnly={readOnly} />
+            <NumberField label="Critical below" suffix="days" value={v.stockRunwayCriticalDays} onChange={num("stockRunwayCriticalDays")} readOnly={readOnly} />
+          </div>
+        </Section>
         <Section title="Company" description="Fixed for this workspace.">
           <ReadOnly label="Currency" value="EUR" />
           <ReadOnly label="Time zone" value={initial.timeZone} hint="Dates everywhere are shown in this time zone." />
@@ -110,6 +118,10 @@ function pick(s: Editable | TenantSettings): Editable {
     houseWalletLowThreshold: s.houseWalletLowThreshold,
     lowWalletThreshold: s.lowWalletThreshold,
     lowStockThreshold: s.lowStockThreshold,
+    supplierRunwayWarnDays: s.supplierRunwayWarnDays,
+    supplierRunwayCriticalDays: s.supplierRunwayCriticalDays,
+    stockRunwayWarnDays: s.stockRunwayWarnDays,
+    stockRunwayCriticalDays: s.stockRunwayCriticalDays,
     watermark: { ...s.watermark },
     taxWording: s.taxWording,
   };

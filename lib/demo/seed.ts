@@ -33,19 +33,63 @@ const POPULAR: Record<string, number> = {
   ID: 2, MY: 2, VN: 2, KR: 2, US: 4, TR: 3, AU: 2, HK: 2, CA: 1, MX: 1, EG: 1, ZA: 1,
 };
 
-function pickNetwork(rng: Rng, zoneId: string, opts: { maxCost?: number; minCost?: number } = {}): Network {
+function pickNetwork(rng: Rng, zoneId: string, opts: { maxCost?: number; minCost?: number; exclude?: readonly string[] } = {}): Network {
   const nets = zoneNetworks(zoneId).filter(
-    (n) => isPriced(n) && n.iso2 !== "--" && (opts.maxCost === undefined || n.costPerMb! <= opts.maxCost) && (opts.minCost === undefined || n.costPerMb! >= opts.minCost),
+    (n) =>
+      isPriced(n) &&
+      n.iso2 !== "--" &&
+      !opts.exclude?.includes(n.iso2) &&
+      (opts.maxCost === undefined || n.costPerMb! <= opts.maxCost) &&
+      (opts.minCost === undefined || n.costPerMb! >= opts.minCost),
   );
   const countries = [...new Set(nets.map((n) => n.iso2))];
   const iso = rng.weighted(countries.map((c) => [c, POPULAR[c] ?? 0.25] as const));
   return rng.pick(nets.filter((n) => n.iso2 === iso));
 }
 
+/*
+ * Where our customers really use data (docs/demo-data.md §2): Italy first,
+ * then the UAE, Morocco and Spain by revenue. Each plan zone has a mix of
+ * destinations ("*" = any other country in the zone, cheap networks on the
+ * Worldwide plan), and each destination a mix of operators.
+ */
+const ZONE_MIX: Record<string, readonly (readonly [string, number])[]> = {
+  lz79313: [["IT", 1]],
+  "z-europe30": [["IT", 55], ["ES", 33], ["*", 12]],
+  "z-asia": [["AE", 70], ["*", 30]],
+  "z-world": [["MA", 16], ["AE", 20], ["*", 64]],
+};
+const OPERATOR_MIX: Record<string, readonly (readonly [RegExp, number])[]> = {
+  IT: [[/Iliad/, 35], [/Vodafone/, 31], [/Wind/, 31], [/TIM/, 2.5]],
+  ES: [[/Movistar/, 72], [/Orange/, 14], [/Vodafone/, 14]],
+  AE: [[/^DU\b/, 50], [/Etisalat/, 50]],
+  MA: [[/Maroc Telecom/, 1]],
+};
+
+/** A plan's network: a destination from the zone's mix, then an operator there. */
+function pickDestination(rng: Rng, zoneId: string, maxCost?: number): Network {
+  const mix = ZONE_MIX[zoneId];
+  if (!mix) return pickNetwork(rng, zoneId, { maxCost });
+  const iso = rng.weighted(mix);
+  if (iso === "*") return pickNetwork(rng, zoneId, { maxCost, exclude: mix.map(([c]) => c) });
+  const ops = OPERATOR_MIX[iso] ?? [];
+  const nets = zoneNetworks(zoneId).filter((n) => n.iso2 === iso && isPriced(n));
+  const weighted = nets.map((n) => [n, ops.find(([re]) => re.test(n.operator))?.[1] ?? 0] as const).filter(([, w]) => w > 0);
+  return weighted.length ? rng.weighted(weighted) : rng.pick(nets);
+}
+
 export function createSeed(now: Date = new Date()): DState {
   const rng = createRng(SEED);
   const today = dateInZone(now, DEFAULT_TIME_ZONE);
-  const at = (offset: number, h?: number, m?: number) => instant(today, offset, h, m);
+  // nothing happens in the future: a time later today than "now" moves to earlier today (deterministic)
+  const at = (offset: number, h?: number, m?: number) => {
+    const iso = instant(today, offset, h, m);
+    if (Date.parse(iso) <= now.getTime()) return iso;
+    const startOfDay = Date.parse(instant(today, 0, 0, 0));
+    const span = Math.max(60000, now.getTime() - startOfDay - 60000);
+    const minutes = ((h ?? 10) * 60 + (m ?? 0)) / (24 * 60);
+    return new Date(startOfDay + Math.floor(span * minutes)).toISOString();
+  };
   let seq = 1000;
   const id = (prefix: string) => `${prefix}${++seq}`;
 
@@ -247,9 +291,13 @@ export function createSeed(now: Date = new Date()): DState {
     taxWording: "Prices exclude VAT. Telecommunication services supplied under the reverse charge where applicable.",
     lowWalletThreshold: 50,
     lowStockThreshold: 20,
+    supplierRunwayWarnDays: 14,
+    supplierRunwayCriticalDays: 7,
+    stockRunwayWarnDays: 7,
+    stockRunwayCriticalDays: 3,
     dailySaleLimit: 50,
     saleCap: 500,
-    freeStock: 23,
+    freeStock: 57,
   };
 
   const s: DState = {
@@ -317,7 +365,7 @@ export function createSeed(now: Date = new Date()): DState {
   /** Adds a package with its order, hold and usage. `start` = first day of use (offset), null = not started. */
   const addPackage = (e: DEsim, plan: DPlan, opts: { start: number | null; created: number; story: PlanStory; type: "new_esim" | "add_plan"; network?: Network; maxCost?: number }) => {
     const buyer = buyerOf(e.resellerId);
-    const network = opts.network ?? pickNetwork(rng, plan.zoneId, { maxCost: opts.maxCost ?? (plan.zoneId === "z-world" ? 0.004 : undefined) });
+    const network = opts.network ?? pickDestination(rng, plan.zoneId, opts.maxCost ?? (plan.zoneId === "z-world" ? 0.0015 : undefined));
     // some phones also use a second operator in the same country on some days
     const others = zoneNetworks(plan.zoneId).filter((n) => n.iso2 === network.iso2 && n.id !== network.id && isPriced(n) && (plan.zoneId !== "z-world" || n.costPerMb! <= 0.004));
     const altNetworkId = !opts.network && others.length && rng.chance(0.7) ? rng.pick(others).id : null;
@@ -341,7 +389,8 @@ export function createSeed(now: Date = new Date()): DState {
       const days = lastDay - opts.start + 1;
       const mb: number[] = [];
       let total = 0;
-      const intensity = rng.float(0.25, 1.35);
+      // travellers use most of their plan; heavy users run out before it ends
+      const intensity = rng.float(0.7, 1.9);
       for (let d = 0; d < days; d++) {
         const want = rng.chance(0.12) ? 0 : (limitMb / plan.validityDays) * intensity * rng.float(0.3, 1.7);
         const v = Math.max(0, Math.min(want, limitMb - total));
@@ -437,15 +486,16 @@ export function createSeed(now: Date = new Date()): DState {
     return e;
   };
 
-  const PLAN_WEIGHTS = [["p-it3", 6], ["p-it1", 2], ["p-it5", 2], ["p-eu5", 3], ["p-eu10", 3], ["p-eu20", 1], ["p-asia5", 3], ["p-world10", 1]] as const;
-  const COUNTS: [string | null, number][] = [[null, 25], ["r2", 35], ["r1", 28], ["r3", 14], ["r5", 8], ["r4", 6], ["r6", 4]];
+  const PLAN_WEIGHTS = [["p-it3", 7], ["p-it1", 1], ["p-it5", 5], ["p-eu5", 3], ["p-eu10", 5], ["p-eu20", 3], ["p-asia5", 2], ["p-world10", 2]] as const;
+  // eSIMs sold in the last 90 days, per buyer (null = direct sales)
+  const COUNTS: [string | null, number][] = [[null, 25], ["r2", 445], ["r1", 360], ["r3", 190], ["r5", 8], ["r4", 6], ["r6", 4]];
 
   for (const [owner, count] of COUNTS) {
     for (let i = 0; i < count; i++) {
       // r4, r5 and r6 have no running plans (zero balance, outstanding, suspended)
       const quiet = owner === "r4" || owner === "r5" || owner === "r6";
       const n = rng.weighted([[1, 60], [2, 30], [3, 10]] as const);
-      const lastStory: PlanStory = quiet ? "expired" : rng.weighted([["active", 55], ["pending", 12], ["expired", 28], ["deleted", 5]] as const);
+      const lastStory: PlanStory = quiet ? "expired" : rng.weighted([["active", 47], ["pending", 9], ["expired", 39], ["deleted", 5]] as const);
       const chosen = Array.from({ length: n }, () => planById.get(rng.weighted(PLAN_WEIGHTS))!);
       // timeline from the last plan backwards
       const starts: (number | null)[] = [];
@@ -753,7 +803,21 @@ export function createSeed(now: Date = new Date()): DState {
   // ---- our prepaid account at Yesim: deposits, and the balance Yesim reports (a late report makes a small difference)
   let yesimCost = 0;
   forEachPackageDay(s, (_p, _d, lines) => lines.forEach((l) => (yesimCost += l.cost)));
-  const depositPlan: [number, number][] = [[-95, 2500], [-62, 2000], [-30, 2000], [-8, 1500]];
+  // each deposit covers the cost until the next one, in round €500s; the last leaves about €5,000
+  const costByOffset = new Map<number, number>();
+  forEachPackageDay(s, (_p, d, lines) => {
+    const o = daysBetween(today, d);
+    costByOffset.set(o, (costByOffset.get(o) ?? 0) + lines.reduce((a, l) => a + l.cost, 0));
+  });
+  const DEPOSIT_DAYS = [-95, -62, -30, -8];
+  const depositPlan: [number, number][] = DEPOSIT_DAYS.map((d, i) => {
+    const until = DEPOSIT_DAYS[i + 1] ?? 1;
+    let cost = 0;
+    for (const [o, c] of costByOffset) if (o >= d && o < until) cost += c;
+    return [d, Math.ceil((cost + 400) / 500) * 500];
+  });
+  const lastDeposit = depositPlan[depositPlan.length - 1]!;
+  lastDeposit[1] = Math.ceil((yesimCost + 4800 - depositPlan.slice(0, -1).reduce((a, [, x]) => a + x, 0)) / 500) * 500;
   s.supplier.deposits = depositPlan.map(([offset, amount], i) => ({ id: `sd${i + 1}`, date: addDays(today, offset), amount, reference: `YS-DEP-${String(i + 1).padStart(3, "0")}` }));
   const implied = depositPlan.reduce((a, [, amount]) => a + amount, 0) - yesimCost;
   s.supplier.reportedBalance = round2(implied - 3.82);
@@ -805,7 +869,10 @@ export function createSeed(now: Date = new Date()): DState {
     const ago = (min: number) => new Date(now.getTime() - min * 60000).toISOString();
     // usage at 80% and 100%, from the real usage of running plans
     const running = s.packages.filter((p) => p.state === "active" || p.state === "depleted");
-    const at80 = running.filter((p) => p.state === "active" && usedPct(p) >= 0.8 && usedPct(p) < 1).slice(0, 4);
+    // one each for r1, r2, r3 and direct sales, so every viewer has one to see
+    const near = running.filter((p) => p.state === "active" && usedPct(p) >= 0.8 && usedPct(p) < 1);
+    const ownerOf = (p: DPackage) => s.esims.find((x) => x.id === p.esimId)?.resellerId ?? null;
+    const at80 = (["r1", "r2", null, "r3"] as const).map((o) => near.find((p) => ownerOf(p) === o)).filter((p): p is DPackage => !!p);
     at80.forEach((p, i) => {
       const e = s.esims.find((x) => x.id === p.esimId)!;
       s.alerts.push(alert({ type: "usage_threshold", severity: "warning", title: `Data use at 80%: ${label(e)}`, detail: `${p.name} has used ${Math.floor(usedPct(p) * 100)}% of its data.`, resellerId: e.resellerId, esimId: e.id, href: `/esim/esims/${e.id}`, ruleId: "rule-80", status: i === 0 ? "open" : i === 1 ? "acknowledged" : "open", createdAt: ago(5 + i * 190) }));

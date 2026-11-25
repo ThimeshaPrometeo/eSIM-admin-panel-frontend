@@ -31,7 +31,8 @@ export type EsimFilters = {
   q?: string;
   status?: EsimStatus | "SUSPENDED_ANY" | null;
   installStatus?: InstallStatus | null;
-  planState?: PlanState | "blocked" | null;
+  /** "blocked" = any blocked state; "needs_funds" = awaiting funds or blocked (dashboard link). */
+  planState?: PlanState | "blocked" | "needs_funds" | null;
   planId?: string | null;
   country?: string | null;
   resellerId?: string | null;
@@ -268,7 +269,13 @@ export const demoEsims = {
         .filter((e) => !q || e.iccid.includes(q) || (e.customerName ?? "").toLowerCase().includes(q))
         .filter((e) => !f.status || (f.status === "SUSPENDED_ANY" ? e.status === "SUSPENDED" : e.status === f.status))
         .filter((e) => !f.installStatus || e.installStatus === f.installStatus)
-        .filter((e) => !f.planState || e.plans.some((p) => (f.planState === "blocked" ? p.state.startsWith("blocked") : p.state === f.planState)))
+        .filter(
+          (e) =>
+            !f.planState ||
+            e.plans.some((p) =>
+              f.planState === "blocked" ? p.state.startsWith("blocked") : f.planState === "needs_funds" ? p.state === "awaiting_funds" || p.state.startsWith("blocked") : p.state === f.planState,
+            ),
+        )
         .filter((e) => !f.planId || e.plans.some((p) => p.planId === f.planId))
         .filter((e) => !f.country || e.plans.some((p) => NETWORK_BY_ID.get(c.s.packages.find((x) => x.id === p.id)!.networkId)?.iso2 === f.country))
         .sort((a, b) => (b.lastActivityAt ?? b.createdAt).localeCompare(a.lastActivityAt ?? a.createdAt));

@@ -2,7 +2,7 @@
 
 import { FitPage } from "@/components/platform/fit-page";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { DataTable, type Column } from "@/components/platform/data-table";
 import { FilterSelect, ResellerSelect } from "@/components/platform/fields";
@@ -20,7 +20,12 @@ import type { Order } from "@/lib/platform/types";
 export function OrdersClient() {
   const router = useRouter();
   const { isTenant } = usePermission();
-  const [status, setStatus] = useState<OrderStatus | null>(null);
+  const params = useSearchParams();
+  // ?status= from a dashboard link
+  const [status, setStatus] = useState<OrderStatus | null>(() => {
+    const st = params.get("status");
+    return st && st in ORDER_STATUS ? (st as OrderStatus) : null;
+  });
   const [type, setType] = useState<Order["type"] | null>(null);
   const [resellerId, setResellerId] = useState<string | null>(null);
   const { data, loading, error } = useResource(() => esimsApi.listOrders({ status, type, resellerId }), [status, type, resellerId]);

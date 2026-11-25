@@ -22,7 +22,7 @@ import { peopleApi } from "@/lib/api/people";
 import { exportCsv, exportPdf } from "@/lib/exports";
 import { formatAxisDate, formatDate, formatDateTime } from "@/lib/platform/dates";
 import { formatMoney } from "@/lib/platform/money";
-import { periodFor, PERIOD_LABELS, type Period } from "@/lib/platform/period";
+import { customPeriod, periodFor, PERIOD_LABELS, type Period } from "@/lib/platform/period";
 import type { ProfitReport, ProfitRow } from "@/lib/platform/types";
 import { formatBytes } from "@/lib/platform/units";
 import { cn } from "@/lib/utils";
@@ -34,11 +34,20 @@ const BY_LABEL: Record<By, string> = { byReseller: "Reseller", byCountry: "Count
 /** Profit and costs (spec 8.23, 8.32): admin full, staff view. */
 export function ProfitClient() {
   const { me } = usePlatform();
-  const [period, setPeriod] = useState<Period>(() => ({ ...periodFor("30d"), granularity: "day" }));
-  const [resellerId, setResellerId] = useState<string | null>(null);
+  const params = useSearchParams();
+  // ?from=&to= (a day clicked on the dashboard) and ?reseller=
+  const [period, setPeriod] = useState<Period>(() => {
+    const from = params.get("from");
+    const to = params.get("to");
+    const ok = (d: string | null) => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d);
+    return ok(from) && ok(to) ? customPeriod(from!, to!) : { ...periodFor("30d"), granularity: "day" };
+  });
+  const [resellerId, setResellerId] = useState<string | null>(() => {
+    const r = params.get("reseller");
+    return r && /^[a-z0-9-]{1,40}$/i.test(r) ? r : null;
+  });
   const resellers = useResource(() => peopleApi.listResellerOptions(), ["reseller-options"]);
   const { data } = useResource(() => financeApi.getProfitReport(period, { resellerId }), [period.from, period.to, period.granularity, resellerId]);
-  const params = useSearchParams();
   const [tab, setTab] = useState(() => (["breakdown", "reconciliation"].includes(params.get("tab") ?? "") ? params.get("tab")! : "overview"));
   const [by, setBy] = useState<By>("byReseller");
 

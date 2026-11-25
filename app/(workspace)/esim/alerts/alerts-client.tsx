@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertOctagon, AlertTriangle, Bell, Check, Eye, Info, Pencil, Plus, ShieldOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -74,7 +75,12 @@ export function AlertsClient() {
 function Inbox({ manage }: { manage: boolean }) {
   const { isTenant } = usePermission();
   const [status, setStatus] = useState<StatusFilter | null>("active");
-  const [type, setType] = useState<AlertType | null>(null);
+  const params = useSearchParams();
+  // ?type= from a dashboard link
+  const [type, setType] = useState<AlertType | null>(() => {
+    const t = params.get("type");
+    return t && t in ALERT_TYPE_LABEL ? (t as AlertType) : null;
+  });
   const [resellerId, setResellerId] = useState<string | null>(null);
   const { data, loading, error } = useResource(() => operationsApi.listAlerts({ status: status === "all" ? null : status, type, resellerId }), [status, type, resellerId]);
   const { run, pending } = useAction();
