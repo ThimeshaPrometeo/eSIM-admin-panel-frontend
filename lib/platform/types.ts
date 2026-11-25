@@ -479,6 +479,8 @@ export type TenantOverview = {
     bytes: Trend;
     /** eSIMs that used data in the period. */
     activeEsims: Trend;
+    /** The part of revenue, cost and profit still estimated (provisional prices until the nightly report). */
+    estimated: { revenue: number; cost: number; profit: number };
     supplier: { balance: number; avgDailyCost: number; runwayDays: number | null; level: RunwayLevel; warnDays: number; criticalDays: number };
     stock: { free: number; avgDailySales: number; daysLeft: number | null; level: RunwayLevel; warnDays: number; criticalDays: number };
   };
@@ -503,6 +505,8 @@ export type ResellerOverview = {
     spend: Trend;
     bytes: Trend;
     activeEsims: Trend;
+    /** The part of spend still estimated. */
+    estimatedSpend: number;
     customers: number;
     wallet: { available: number; outstanding: number; avgDailySpend: number; runwayDays: number | null; level: RunwayLevel; lowThreshold: number };
   };
@@ -812,7 +816,7 @@ export type UsageReport = {
   series: { bucket: string; finalBytes: number; estimatedBytes: number }[];
   byCountry: { iso2: string; country: string; bytes: number }[];
   rows: UsageReportRow[];
-  options: { plans: { id: string; name: string }[]; countries: { iso2: string; name: string }[] };
+  options: { plans: { id: string; name: string }[]; countries: { iso2: string; name: string }[]; networks: { id: string; name: string }[] };
   /** Watermark usage-report PDFs (Settings). */
   watermark: boolean;
 };

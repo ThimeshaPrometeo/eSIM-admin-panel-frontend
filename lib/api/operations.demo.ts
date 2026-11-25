@@ -19,7 +19,7 @@ import { BYTES } from "@/lib/platform/units";
 const resellerName = (s: DState, id: string | null) => (id ? (s.resellers.find((r) => r.id === id)?.companyName ?? id) : null);
 const userName = (s: DState, id: string | null) => (id ? (s.users.find((u) => u.id === id)?.fullName ?? "System") : null);
 
-export type UsageFilters = { resellerId?: string | null; planId?: string | null; iso2?: string | null };
+export type UsageFilters = { resellerId?: string | null; planId?: string | null; iso2?: string | null; networkId?: string | null };
 export type AlertFilters = { status?: AlertStatus | "active" | null; type?: AlertType | null; resellerId?: string | null };
 export type RuleInput = { thresholdPercent: number; action: AlertRule["action"]; enabled: boolean };
 export type CustomerInput = { name: string; email: string; phone: string };
@@ -218,17 +218,22 @@ export const demoOperations = {
       const byCountry = new Map<string, number>();
       const plans = new Map<string, string>();
       const countries = new Map<string, string>();
+      const networks = new Map<string, string>();
       let estimatedCharge = 0;
       forEachPackageDay(
         s,
         (p, date, lines, charge) => {
           const e = s.esims.find((x) => x.id === p.esimId)!;
           plans.set(p.planId, s.plans.find((x) => x.id === p.planId)?.name ?? p.name);
-          for (const l of lines) countries.set(l.iso2, NETWORK_BY_ID.get(l.networkId)?.country ?? l.iso2);
-          const ls = f.iso2 ? lines.filter((l) => l.iso2 === f.iso2) : lines;
+          for (const l of lines) {
+            const n = NETWORK_BY_ID.get(l.networkId);
+            countries.set(l.iso2, n?.country ?? l.iso2);
+            networks.set(l.networkId, n ? `${n.operator} (${n.iso2})` : l.networkId);
+          }
+          const ls = lines.filter((l) => (!f.iso2 || l.iso2 === f.iso2) && (!f.networkId || l.networkId === f.networkId));
           if (!ls.length || (f.planId && p.planId !== f.planId)) return;
-          // a whole day's charge is rounded once; with a country filter, the lines in that country
-          const amount = f.iso2 ? round2(ls.reduce((a, l) => a + l.amount, 0)) : charge;
+          // a whole day's charge is rounded once; with a country or network filter, the lines that match
+          const amount = f.iso2 || f.networkId ? round2(ls.reduce((a, l) => a + l.amount, 0)) : charge;
           const row =
             rows.get(e.id) ??
             ({ esimId: e.id, iccid: e.iccid, customerName: s.customers.find((x) => x.id === e.customerId)?.name ?? null, resellerName: resellerName(s, e.resellerId), plans: [], countries: [], topNetwork: null, bytes: 0, charge: 0, yesimCost: c.tenant ? 0 : null, estimated: false, countryMb: new Map(), netMb: new Map(), planSet: new Set() } as UsageReportRow & { countryMb: Map<string, number>; netMb: Map<string, number>; planSet: Set<string> });
@@ -278,6 +283,7 @@ export const demoOperations = {
         options: {
           plans: [...plans].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
           countries: [...countries].map(([iso2, name]) => ({ iso2, name })).sort((a, b) => a.name.localeCompare(b.name)),
+          networks: [...networks].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
         },
         watermark: s.settings.watermark.usage_report,
       };

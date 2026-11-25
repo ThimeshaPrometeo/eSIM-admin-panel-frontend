@@ -14,9 +14,14 @@
  *
  * Direct sales are charged to the house wallet at Yesim cost; their revenue
  * is the retail price (Yesim × (1 + retail markup)).
+ *
+ * Estimated days (today, yesterday and late reports) are priced at the
+ * highest Yesim €/MB among the plan zone's networks that day: the meter
+ * doesn't know the network yet. The nightly report re-prices them exactly
+ * per network (Final). A trip across countries uses each leg's network.
  */
 import { addDays } from "@/lib/platform/dates";
-import { NETWORK_BY_ID } from "./catalogue";
+import { NETWORK_BY_ID, zoneNetworks } from "./catalogue";
 import type { DPackage, DPriceVersion, DState } from "./model";
 
 export type RatedLine = {
@@ -180,9 +185,39 @@ function hash(str: string) {
   return (h >>> 0) / 4294967296;
 }
 
+/** The networks a package used on a usage day: its trip leg, else its own. */
+export function legAt(p: DPackage, dayIndex: number): { networkId: string; altNetworkId: string | null } {
+  if (!p.legs?.length) return { networkId: p.networkId, altNetworkId: p.altNetworkId };
+  let leg = p.legs[0]!;
+  for (const l of p.legs) if (l.from <= dayIndex) leg = l;
+  return leg;
+}
+
+/** Every network a package used (all legs). */
+export function packageNetworks(p: DPackage): string[] {
+  const legs = p.legs?.length ? p.legs : [{ networkId: p.networkId, altNetworkId: p.altNetworkId }];
+  return [...new Set(legs.flatMap((l) => (l.altNetworkId ? [l.networkId, l.altNetworkId] : [l.networkId])))];
+}
+
+const zoneMaxCache = new Map<string, number>();
+/** The highest Yesim €/MB among a zone's priced networks on a day (the provisional price of estimated usage). */
+export function zoneMaxCost(s: DState, zoneId: string, date: string): number {
+  const key = `${s.seededAt}|${s.priceVersions.length}|${zoneId}|${date}`;
+  const hit = zoneMaxCache.get(key);
+  if (hit !== undefined) return hit;
+  let max = 0;
+  for (const n of zoneNetworks(zoneId)) {
+    const c = costAt(s, n.id, date);
+    if (c !== null && c > max) max = c;
+  }
+  if (zoneMaxCache.size > 5000) zoneMaxCache.clear();
+  zoneMaxCache.set(key, max);
+  return max;
+}
+
 /** Share of a day's data on the second network (0 on most days). */
-function altShare(p: DPackage, dayIndex: number) {
-  if (!p.altNetworkId) return 0;
+function altShare(altNetworkId: string | null, p: DPackage, dayIndex: number) {
+  if (!altNetworkId) return 0;
   const h = hash(`${p.id}:${dayIndex}`);
   return h < 0.35 ? 0.2 + (h / 0.35) * 0.5 : 0;
 }
@@ -197,14 +232,18 @@ export function packageDayLines(s: DState, p: DPackage, dayIndex: number, owner:
   const mbDay = u?.mb[dayIndex] ?? 0;
   if (!u || !mbDay) return [];
   const date = addDays(u.start, dayIndex);
-  const share = altShare(p, dayIndex);
-  const parts: [string, number][] = share > 0 ? [[p.networkId, 1 - share], [p.altNetworkId!, share]] : [[p.networkId, 1]];
+  const leg = legAt(p, dayIndex);
+  const share = altShare(leg.altNetworkId, p, dayIndex);
+  const parts: [string, number][] = share > 0 ? [[leg.networkId, 1 - share], [leg.altNetworkId!, share]] : [[leg.networkId, 1]];
   const estimated = isEstimated(s, owner, date);
+  // estimated: the zone's highest price until the nightly report says which network was used
+  const zoneId = estimated ? s.plans.find((x) => x.id === p.planId)?.zoneId : undefined;
+  const provisional = zoneId ? zoneMaxCost(s, zoneId, date) : null;
   const version = versionAt(s, date).version;
   const direct = owner === null;
   const segs = segments(s, owner, p.planId, date);
   return parts.flatMap(([networkId, f]) => {
-    const cost = costAt(s, networkId, date) ?? 0;
+    const cost = provisional ?? costAt(s, networkId, date) ?? 0;
     return segs.map((seg) => {
       const mb = mbDay * f * seg.share;
       const resellerPrice = cost * (1 + seg.markup / 100) * (1 - seg.discount / 100);

@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { DonutCard, colorMap, type DonutSlice } from "@/components/platform/charts/donut-card";
 import { ChartFill } from "@/components/platform/charts/chart-kit";
+import { colorMap, DonutCard, type DonutSlice } from "@/components/platform/charts/donut-card";
 import { OVERVIEW_SYNC_ID, TrendChart, trendInsight, type TrendRow } from "@/components/platform/charts/overview-chart";
 import { LiveGlobeCard, type Spotlight } from "@/components/platform/live-globe-card";
 import {
@@ -14,8 +14,11 @@ import {
   gb,
   KpiTile,
   MiniTable,
+  NetworksRankCard,
   OverviewFilterBar,
   pct,
+  Seg,
+  SupplyTile,
   TabbedCard,
   TopCountriesCard,
   TrendText,
@@ -52,18 +55,20 @@ const tickDigits = (n: number) => (Math.abs(n) < 1 ? 2 : Math.abs(n) < 10 ? 1 : 
 const axisEur = (n: number) => (Math.abs(n) >= 1000 ? `€${(n / 1000).toLocaleString("en-GB", { maximumFractionDigits: 1 })}k` : `€${n.toLocaleString("en-GB", { maximumFractionDigits: tickDigits(n) })}`);
 const axisGb = (n: number) => (n >= 1000 ? `${(n / 1024).toLocaleString("en-GB", { maximumFractionDigits: 1 })} TB` : `${n.toLocaleString("en-GB", { maximumFractionDigits: tickDigits(n) })} GB`);
 const gbOf = (n: number) => (n >= 1000 ? `${(n / 1024).toLocaleString("en-GB", { maximumFractionDigits: 2 })} TB` : `${n.toLocaleString("en-GB", { maximumFractionDigits: n < 10 ? 2 : 1 })} GB`);
-const shortOperator = (operator: string, country: string) => operator.replace(new RegExp(`\\s*${country}.*$`), "") || operator;
+/** "€9.5k" for notes. */
+const eurShort = (n: number) => (Math.abs(n) >= 1000 ? `€${(n / 1000).toLocaleString("en-GB", { maximumFractionDigits: 1 })}k` : eur0(n));
+/** "Maroc Telecom (IAM)" → "Maroc Telecom", "Vodafone Italy" → "Vodafone": the country is on the row's code chip. */
+const shortOperator = (operator: string, country: string) => operator.replace(new RegExp(`\\s*${country}.*$`), "").replace(/\s*\([^)]*\)\s*$/, "") || operator;
 const regionNames = typeof Intl !== "undefined" && "DisplayNames" in Intl ? new Intl.DisplayNames(["en-GB"], { type: "region" }) : null;
 /** A country's name: ours first, else the browser's (any country on the globe). */
 const countryName = (names: Map<string, string>, iso2: string) => names.get(iso2) ?? regionNames?.of(iso2) ?? iso2;
 
 /**
- * Dashboard (spec 8.1; reworked 2026-11): seven slim KPIs, a live globe,
- * data and money per day, network donuts, top countries, and one card for
- * Needs attention, plans and resellers. Clicking a country (globe or list)
- * focuses every card on it. Resellers and assistants see their own scope at
- * their price; never Yesim cost or profit.
- * One screen on desktop (1440×900 and 1366×768); stacked below that.
+ * Dashboard (spec 8.1; simplified 2026-11): five tiles, then the live globe,
+ * one chart (Revenue | Data) and Needs attention side by side, then top
+ * countries, networks and the plan mix (donut). Clicking a country (globe or list) focuses every
+ * card on it. Resellers and assistants see their own scope at their price;
+ * never Yesim cost or profit. One screen on desktop (1440×900, 1366×768).
  */
 export function DashboardClient() {
   const { me } = usePlatform();
@@ -85,13 +90,12 @@ export function DashboardClient() {
   const fit = useMediaQuery("(min-width: 1024px) and (min-height: 640px)");
   /** Focus every card on a country (null = all countries again). */
   const focus = useCallback((iso2: string | null) => setF((x) => ({ ...x, iso2, networkId: null })), []);
-  const pickNetwork = useCallback((networkId: string | null) => setF((x) => ({ ...x, networkId })), []);
 
   const body =
     data?.scope === "reseller" || (!data && !tenant) ? (
-      <ResellerDashboard data={data?.scope === "reseller" ? data : null} q={q} fit={fit} stale={stale} focus={focus} pickNetwork={pickNetwork} />
+      <ResellerDashboard data={data?.scope === "reseller" ? data : null} q={q} fit={fit} stale={stale} focus={focus} />
     ) : (
-      <TenantDashboard data={data?.scope === "tenant" ? data : null} q={q} fit={fit} stale={stale} focus={focus} pickNetwork={pickNetwork} />
+      <TenantDashboard data={data?.scope === "tenant" ? data : null} q={q} fit={fit} stale={stale} focus={focus} />
     );
   return (
     <div className={cn("flex flex-col gap-2.5", fit ? "h-[calc(100dvh-104px)] min-h-[560px]" : "pb-6")}>
@@ -102,36 +106,48 @@ export function DashboardClient() {
   );
 }
 
-type Shared = { q: OverviewQuery; fit: boolean; stale: boolean; focus: (iso2: string | null) => void; pickNetwork: (id: string | null) => void };
+/**
+ * The plan mix donut: the five plans ranked first by `rankBy` (the period's main measure)
+ * plus "Other". Colours follow the plan, fixed by that ranking, so switching the
+ * measure moves the slices without repainting them.
+ */
+function planMix<P extends { id: string; name: string }>(plans: P[], value: (p: P) => number, rankBy: (p: P) => number): { slices: DonutSlice[]; colorOf: (k: string) => string } {
+  const ranked = plans.filter((p) => rankBy(p) > 0 || value(p) > 0).sort((a, b) => rankBy(b) - rankBy(a) || value(b) - value(a));
+  const top = ranked.slice(0, 5);
+  const colors = colorMap(top.map((p) => p.id));
+  const other = ranked.slice(5).reduce((a, p) => a + value(p), 0);
+  const slices: DonutSlice[] = top.filter((p) => value(p) > 0).map((p) => ({ key: p.id, label: p.name, value: value(p) }));
+  if (other > 0) slices.push({ key: "other", label: "Other plans", value: other });
+  return { slices, colorOf: (k) => colors.get(k) ?? "var(--series-other)" };
+}
 
-/** KPIs, then [live | data | money] and [donuts | countries | tabs]; dims while a filter change loads. */
-function Layout({ fit, stale, kpis, top, bottom }: { fit: boolean; stale: boolean; kpis: ReactNode; top: ReactNode[]; bottom: ReactNode[] }) {
-  const cols = (n: number) => (n === 2 ? "lg:grid-cols-[1fr_2fr]" : n === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4");
+type Shared = { q: OverviewQuery; fit: boolean; stale: boolean; focus: (iso2: string | null) => void };
+
+/** Tiles, then [globe | chart | attention], then [countries | networks | plan mix] in the same columns; dims while a filter change loads. */
+function Layout({ fit, stale, kpis, main, bottom }: { fit: boolean; stale: boolean; kpis: ReactNode; main: [ReactNode, ReactNode, ReactNode]; bottom: [ReactNode, ReactNode, ReactNode] }) {
   const dim = cn("transition-opacity duration-200", stale && "opacity-60");
   if (!fit)
     return (
       <div className={cn("flex flex-col gap-3", dim)} aria-busy={stale || undefined}>
         {kpis}
-        <div className="grid gap-3 sm:grid-cols-2">
-          {[...top, ...bottom].map((n, i) => (
-            <div key={i} className="h-[300px] min-w-0">
-              {n}
-            </div>
-          ))}
-        </div>
+        {[...main, ...bottom].map((n, i) => (
+          <div key={i} className="h-[320px] min-w-0">
+            {n}
+          </div>
+        ))}
       </div>
     );
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col gap-2.5", dim)} aria-busy={stale || undefined}>
       {kpis}
-      <div className={cn("grid min-h-0 flex-1 gap-2.5", cols(top.length))}>
-        {top.map((n, i) => (
+      <div className="grid min-h-0 flex-[1.3] grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)] gap-2.5">
+        {main.map((n, i) => (
           <div key={i} className="min-h-0 min-w-0">
             {n}
           </div>
         ))}
       </div>
-      <div className={cn("grid min-h-0 flex-[1.1] gap-2.5", cols(bottom.length))}>
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_minmax(0,1fr)] gap-2.5">
         {bottom.map((n, i) => (
           <div key={i} className="min-h-0 min-w-0">
             {n}
@@ -142,87 +158,61 @@ function Layout({ fit, stale, kpis, top, bottom }: { fit: boolean; stale: boolea
   );
 }
 
-/** The same six networks in both donuts (biggest combined share of the two measures), so colours match. */
-function featuredNetworks<T extends { id: string }>(rows: T[], a: (r: T) => number, b: (r: T) => number) {
-  const ta = rows.reduce((s, r) => s + a(r), 0) || 1;
-  const tb = rows.reduce((s, r) => s + b(r), 0) || 1;
-  return [...rows].sort((x, y) => a(y) / ta + b(y) / tb - (a(x) / ta + b(x) / tb)).slice(0, 6).map((r) => r.id);
-}
-function sliceFor<T extends { id: string; operator: string; iso2: string; country: string }>(rows: T[], keys: string[], v: (r: T) => number): DonutSlice[] {
-  const keep = new Set(keys);
-  const top = rows.filter((r) => keep.has(r.id)).map((r) => ({ key: r.id, label: shortOperator(r.operator, r.country), sub: r.iso2, value: v(r) }));
-  const other = rows.filter((r) => !keep.has(r.id));
-  const otherValue = other.reduce((s, r) => s + v(r), 0);
-  // largest first, "Other" always last
-  const sorted = top.sort((x, y) => y.value - x.value);
-  return otherValue > 0 ? [...sorted, { key: "other", label: "Other", sub: `${other.length} networks`, value: otherValue }] : sorted;
-}
-
 const loadingCard = <Skeleton className="h-full min-h-[200px] rounded-card" />;
+
+/** A stable empty list (a new `[]` on every render would look like new data). */
+const NONE: never[] = [];
+
+/** Keeps the world view (all countries) while a country is in focus, so the globe and list can switch. */
+function useWorld<T>(value: T, focused: string | null, stale: boolean) {
+  const [world, setWorld] = useState(value);
+  if (!focused && !stale && value !== world) setWorld(value);
+  return focused ? world : value;
+}
 
 // ------------------------------------------------------------------- admin
 
-type CountryMetric = "revenue" | "bytes";
-const COUNTRY_METRICS = [
-  ["revenue", "Revenue"],
-  ["bytes", "Data"],
-] as const;
-
-function TenantDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared & { data: TenantOverview | null }) {
+function TenantDashboard({ data, q, fit, stale, focus }: Shared & { data: TenantOverview | null }) {
   const router = useRouter();
   const money = data?.money ?? true;
-  const [countryMetric, setCountryMetric] = useState<CountryMetric>("revenue");
+  const [measure, setMeasure] = useState<"revenue" | "data">("revenue");
+  const [countryMetric, setCountryMetric] = useState<"revenue" | "bytes">("revenue");
+  const [networkMetric, setNetworkMetric] = useState<"bytes" | "cost" | "profit">("bytes");
   const [tab, setTab] = useState<"attention" | "plans" | "resellers">("attention");
-  const cm: CountryMetric = money ? countryMetric : "bytes";
+  const [planMetric, setPlanMetric] = useState<"revenue" | "sold">("revenue");
+  const cm = money ? countryMetric : "bytes";
+  const nm = money ? networkMetric : "bytes";
+  const chartMeasure = money ? measure : "data";
   const k = data?.kpis;
   const reseller = q.resellerId ?? null;
   const focused = q.iso2 ?? null;
-  const series = useMemo(() => data?.series ?? [], [data?.series]);
   const per = q.granularity;
+  const series = useMemo(() => data?.series ?? [], [data?.series]);
 
-  // ---- trends: data used, and revenue as Yesim cost + profit
-  const dataRows: TrendRow[] = useMemo(() => series.map((b) => ({ bucket: b.bucket, label: axisLabel(b.bucket, per), estimated: b.estimated, total: b.bytes / GB, data: b.bytes / GB })), [series, per]);
-  const moneyRows: TrendRow[] = useMemo(
+  // ---- the chart: revenue as Yesim cost + profit, or data used
+  const rows: TrendRow[] = useMemo(
     () =>
-      series.map((b) => ({
-        bucket: b.bucket,
-        label: axisLabel(b.bucket, per),
-        estimated: b.estimated,
-        total: b.revenue,
-        cost: b.cost,
-        profit: Math.max(0, b.profit),
-        realProfit: b.profit,
-        previous: b.previousRevenue ?? -1,
-      })),
-    [series, per],
+      series.map((b): TrendRow =>
+        chartMeasure === "data"
+          ? { bucket: b.bucket, label: axisLabel(b.bucket, per), estimated: b.estimated, total: b.bytes / GB, data: b.bytes / GB }
+          : { bucket: b.bucket, label: axisLabel(b.bucket, per), estimated: b.estimated, total: b.revenue, cost: b.cost, profit: Math.max(0, b.profit), realProfit: b.profit, previous: b.previousRevenue ?? -1 },
+      ),
+    [series, per, chartMeasure],
   );
-  const dataInsight = useMemo(() => trendInsight(dataRows, gbOf, per), [dataRows, per]);
-  const moneyInsight = useMemo(() => trendInsight(moneyRows, eur0, per), [moneyRows, per]);
-
+  const insight = useMemo(() => trendInsight(rows, chartMeasure === "data" ? gbOf : eur0, per), [rows, chartMeasure, per]);
   const openDay = (bucket: string) => {
     const [from, to] = bucketRange(bucket);
-    router.push(money ? `/esim/profit?${qs({ from, to, reseller })}` : `/esim/usage?${qs({ from, to, reseller, country: focused })}`);
+    router.push(chartMeasure === "revenue" ? `/esim/profit?${qs({ from, to, reseller })}` : `/esim/usage?${qs({ from, to, reseller, country: focused })}`);
   };
-  const openUsageDay = (bucket: string) => {
-    const [from, to] = bucketRange(bucket);
-    router.push(`/esim/usage?${qs({ from, to, reseller, country: focused })}`);
-  };
-  const openCountry = (iso2: string) => router.push(`/esim/usage?${qs({ country: iso2, from: q.from, to: q.to, reseller })}`);
 
-  // ---- countries (and, with a country in focus, its networks)
-  const countries = useMemo(() => [...(data?.countries ?? [])].sort((a, b) => (cm === "bytes" ? b.bytes - a.bytes : b.revenue - a.revenue)), [data?.countries, cm]);
-  const glow = useMemo(() => Object.fromEntries(countries.map((c) => [c.iso2, cm === "bytes" ? c.bytes : c.revenue])), [countries, cm]);
-  // the globe keeps the world view while a country is in focus (so another country can be picked)
-  const [world, setWorld] = useState(glow);
-  if (!focused && !stale && glow !== world) setWorld(glow);
-  const globeValues = focused ? world : glow;
+  // ---- countries: the world ranking stays while a country is in focus
   const names = useMemo(() => new Map([...(data?.options.countries ?? []).map((c) => [c.iso2, c.name] as const), ...(data?.countries ?? []).map((c) => [c.iso2, c.name] as const)]), [data?.options.countries, data?.countries]);
-  const networks = useMemo(() => data?.networks ?? [], [data?.networks]);
-  const featured = useMemo(() => (money ? featuredNetworks(networks, (n) => n.bytes, (n) => n.cost) : featuredNetworks(networks, (n) => n.bytes, (n) => n.bytes)), [networks, money]);
-  const colors = useMemo(() => colorMap(featured), [featured]);
-  const colorOf = useCallback((key: string) => colors.get(key) ?? "var(--series-other)", [colors]);
-  const volumeSlices = useMemo(() => sliceFor(networks, featured, (n) => n.bytes), [networks, featured]);
-  const costSlices = useMemo(() => sliceFor(networks, featured, (n) => n.cost), [networks, featured]);
+  const worldCountries = useWorld(data?.countries ?? NONE, focused, stale);
+  const countries = useMemo(() => [...worldCountries].sort((a, b) => (cm === "bytes" ? b.bytes - a.bytes : b.revenue - a.revenue)), [worldCountries, cm]);
+  const glow = useMemo(() => Object.fromEntries(countries.map((c) => [c.iso2, cm === "bytes" ? c.bytes : c.revenue])), [countries, cm]);
+  const openUsage = (o: Record<string, string | null | undefined>) => `/esim/usage?${qs({ from: q.from, to: q.to, reseller, country: focused, ...o })}`;
+
+  const networks = useMemo(() => [...(data?.networks ?? [])].sort((a, b) => (nm === "bytes" ? b.bytes - a.bytes : b[nm] - a[nm])), [data?.networks, nm]);
 
   const spotlight: Spotlight | null =
     focused && k && !stale
@@ -240,47 +230,70 @@ function TenantDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared & {
                 { label: "Data used", value: gb(k.bytes.value) },
                 { label: "Active eSIMs", value: k.activeEsims.value.toLocaleString("en-GB") },
               ],
-          href: `/esim/usage?${qs({ country: focused, from: q.from, to: q.to, reseller })}`,
+          href: openUsage({}),
         }
       : null;
 
+  const est = k?.estimated;
   const kpis = (
-    <div className={cn("grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-4", money ? "lg:grid-cols-7" : "lg:grid-cols-4")}>
+    <div className={cn("grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-3", money ? "lg:grid-cols-5" : "lg:grid-cols-3")}>
       {money ? (
         <>
-          <KpiTile label="Revenue" value={k ? eur0(k.revenue.value) : ""} trend={k?.revenue} loading={!k} title={k?.revenue.previous != null ? `Previous period ${eur0(k.revenue.previous)}` : "Reseller charges and direct sales"} />
-          <KpiTile label="Yesim cost" value={k ? eur0(k.cost.value) : ""} trend={k?.cost} goodWhenUp={false} loading={!k} title="What we pay Yesim for the data used" />
-          <KpiTile label="Profit" value={k ? eur0(k.profit.value) : ""} note={k ? `${k.marginPercent.value >= 10 ? Math.round(k.marginPercent.value) : k.marginPercent.value.toFixed(1)}%` : undefined} trend={k?.profit} loading={!k} title={k ? `Margin ${pct(k.marginPercent.value)}` : undefined} />
+          <KpiTile
+            label="Revenue"
+            value={k ? eur0(k.revenue.value) : ""}
+            trend={k?.revenue}
+            note={est && est.revenue > 0 ? `incl. ${eurShort(est.revenue)} est.` : undefined}
+            loading={!k}
+            title={k ? `Reseller charges and direct sales.${est && est.revenue > 0 ? ` ${eur0(est.revenue)} is estimated (provisional prices until tonight's report).` : ""}${k.revenue.previous != null ? ` Previous period ${eur0(k.revenue.previous)}.` : ""}` : undefined}
+          />
+          <KpiTile
+            label="Profit"
+            value={k ? eur0(k.profit.value) : ""}
+            note={k ? `${k.marginPercent.value >= 10 ? Math.round(k.marginPercent.value) : k.marginPercent.value.toFixed(1)}% margin` : undefined}
+            trend={k?.profit}
+            loading={!k}
+            title={k ? `Revenue ${eur0(k.revenue.value)} − Yesim cost ${eur0(k.cost.value)} (margin ${pct(k.marginPercent.value)}).${est && est.profit !== 0 ? ` ${eur0(est.profit)} of it is estimated.` : ""}` : undefined}
+          />
         </>
       ) : null}
       <KpiTile label="Data used" value={k ? gb(k.bytes.value) : ""} trend={k?.bytes} loading={!k} />
       <KpiTile label="Active eSIMs" value={k ? k.activeEsims.value.toLocaleString("en-GB") : ""} trend={k?.activeEsims} loading={!k} title="eSIMs that used data in the period" />
-      {money ? (
-        <KpiTile
-          label="Yesim balance"
-          value={k ? eur0(k.supplier.balance) : ""}
-          note={k ? days(k.supplier.runwayDays) : undefined}
-          level={k?.supplier.level}
-          href="/esim/yesim"
-          loading={!k}
-          title={k ? `Lasts about ${Math.floor(k.supplier.runwayDays ?? 0)} days at the average Yesim cost of the last 7 days (${eur0(k.supplier.avgDailyCost)} a day). Amber below ${k.supplier.warnDays} days, red below ${k.supplier.criticalDays}.` : undefined}
-        />
-      ) : null}
-      <KpiTile
-        label="Free eSIMs"
-        value={k ? String(k.stock.free) : ""}
-        note={k ? days(k.stock.daysLeft) : undefined}
-        level={k?.stock.level}
-        href="/esim/inventory"
+      <SupplyTile
         loading={!k}
-        title={k ? `About ${k.stock.avgDailySales.toFixed(1)} eSIMs sold a day (last 30 days, as on Inventory). Amber below ${k.stock.warnDays} days, red below ${k.stock.criticalDays}.` : undefined}
+        lines={
+          k
+            ? [
+                ...(money
+                  ? [
+                      {
+                        label: "Yesim balance",
+                        value: eur0(k.supplier.balance),
+                        note: days(k.supplier.runwayDays),
+                        level: k.supplier.level,
+                        href: "/esim/yesim",
+                        title: `Lasts about ${Math.floor(k.supplier.runwayDays ?? 0)} days at the average Yesim cost of the last 7 days (${eur0(k.supplier.avgDailyCost)} a day). Amber below ${k.supplier.warnDays} days, red below ${k.supplier.criticalDays}.`,
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Free eSIMs",
+                  value: String(k.stock.free),
+                  note: days(k.stock.daysLeft),
+                  level: k.stock.level,
+                  href: "/esim/inventory",
+                  title: `About ${k.stock.avgDailySales.toFixed(1)} eSIMs sold a day (last 30 days, as on Inventory). Amber below ${k.stock.warnDays} days, red below ${k.stock.criticalDays}.`,
+                },
+              ]
+            : []
+        }
       />
     </div>
   );
 
-  const live = (
+  const globe = (
     <LiveGlobeCard
-      values={globeValues}
+      values={glow}
       format={cm === "bytes" ? gb : eur0}
       nameOf={(iso) => countryName(names, iso)}
       live={data?.live ?? null}
@@ -291,40 +304,29 @@ function TenantDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared & {
       className="h-full"
     />
   );
-  const dataChart = data ? (
+  const chart = data ? (
     <ChartFill>
       <TrendChart
-        title="Data used"
-        insight={dataInsight.text}
-        data={dataRows}
-        segments={[{ key: "data", label: "Data used", color: "var(--primary)" }]}
-        axisFormat={axisGb}
-        average={dataInsight.average}
-        syncId={OVERVIEW_SYNC_ID}
-        onSelect={openUsageDay}
-        selectHint="Click to open its usage"
-        tooltipRows={(r) => [{ label: "Data used", value: gbOf(r.total), color: "var(--primary)", strong: true }]}
-      />
-    </ChartFill>
-  ) : (
-    loadingCard
-  );
-  const moneyChart = data ? (
-    <ChartFill>
-      <TrendChart
-        title="Revenue"
-        insight={moneyInsight.text}
-        data={moneyRows}
-        segments={[
-          { key: "cost", label: "Yesim cost", color: "var(--neutral)" },
-          { key: "profit", label: "Profit", color: "var(--accent)" },
-        ]}
-        axisFormat={axisEur}
-        average={moneyInsight.average}
+        title={chartMeasure === "data" ? "Data used" : "Revenue"}
+        insight={insight.text}
+        data={rows}
+        segments={
+          chartMeasure === "data"
+            ? [{ key: "data", label: "Data used", color: "var(--primary)" }]
+            : [
+                { key: "cost", label: "Yesim cost", color: "var(--neutral)" },
+                { key: "profit", label: "Profit", color: "var(--accent)" },
+              ]
+        }
+        axisFormat={chartMeasure === "data" ? axisGb : axisEur}
+        overflowFormat={chartMeasure === "data" ? axisGb : eurShort}
+        average={insight.average}
         syncId={OVERVIEW_SYNC_ID}
         onSelect={openDay}
-        selectHint="Click to open it in Profit and costs"
+        selectHint={chartMeasure === "revenue" ? "Click to open it in Profit and costs" : "Click to open its usage"}
+        switcher={money ? { value: measure, onChange: (v) => setMeasure(v as "revenue" | "data"), options: [["revenue", "Revenue"], ["data", "Data"]] as const } : undefined}
         tooltipRows={(r) => {
+          if (chartMeasure === "data") return [{ label: "Data used", value: gbOf(r.total), color: "var(--primary)", strong: true }];
           const revenue = r.total;
           const profit = Number(r.realProfit);
           const prev = Number(r.previous);
@@ -341,52 +343,18 @@ function TenantDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared & {
     loadingCard
   );
 
-  const donutVolume = data ? <DonutCard title="Networks · data used" slices={volumeSlices} colorOf={colorOf} format={gb} totalLabel="total" className="h-full" /> : loadingCard;
-  const donutCost = data ? <DonutCard title="Networks · Yesim cost" slices={costSlices} colorOf={colorOf} format={eur0} totalLabel="total" className="h-full" /> : loadingCard;
-
-  const ranked = focused ? (
-    <TopCountriesCard
-      title={`Networks in ${countryName(names, focused)}`}
-      selectLabel="Narrow the dashboard to this network"
-      metric={cm}
-      onMetric={setCountryMetric}
-      metrics={money ? COUNTRY_METRICS : ([["bytes", "Data"]] as const)}
-      rows={[...networks]
-        .sort((a, b) => (cm === "bytes" ? b.bytes - a.bytes : b.revenue - a.revenue))
-        .map((n) => ({ iso2: n.id, name: shortOperator(n.operator, n.country), value: cm === "bytes" ? n.bytes : n.revenue, display: cm === "bytes" ? gb(n.bytes) : eur0(n.revenue), flag: null }))}
-      selected={q.networkId ?? null}
-      onSelect={pickNetwork}
-      onOpen={() => openCountry(focused)}
-      loading={!data}
-      className="h-full"
-    />
-  ) : (
-    <TopCountriesCard
-      metric={cm}
-      onMetric={setCountryMetric}
-      metrics={money ? COUNTRY_METRICS : ([["bytes", "Data"]] as const)}
-      rows={countries.map((c) => ({ iso2: c.iso2, name: c.name, value: cm === "bytes" ? c.bytes : c.revenue, display: cm === "bytes" ? gb(c.bytes) : eur0(c.revenue) }))}
-      selected={null}
-      onSelect={focus}
-      onOpen={openCountry}
-      loading={!data}
-      className="h-full"
-    />
-  );
-
   const resellerCols: Col<TenantOverview["resellers"][number]>[] = [
-    { key: "name", header: "Reseller", align: "left", className: "w-[36%]", cell: (r) => <span title={r.name}>{r.name}</span> },
+    { key: "name", header: "Reseller", align: "left", className: "w-[40%]", cell: (r) => <span title={r.name}>{r.name}</span> },
     {
       key: "rev",
       header: "Revenue",
-      className: "w-[30%]",
+      className: "w-[32%]",
       cell: (r) => (
         <>
           {eur0(r.revenue)} <span className="text-[11px]">{r.trend !== null ? <TrendText value={r.trend} /> : null}</span>
         </>
       ),
     },
-    { key: "profit", header: "Profit", cell: (r) => eur0(r.profit) },
     {
       key: "wallet",
       header: "Wallet",
@@ -403,19 +371,18 @@ function TenantDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared & {
     },
   ];
   const planCols: Col<TenantOverview["plans"][number]>[] = [
-    { key: "name", header: "Plan", align: "left", className: "w-[40%]", cell: (p) => p.name },
+    { key: "name", header: "Plan", align: "left", className: "w-[44%]", cell: (p) => p.name },
     { key: "sold", header: "Sold", cell: (p) => p.sold },
-    { key: "active", header: "Active", cell: (p) => p.active },
-    ...(money ? [{ key: "rev", header: "Revenue", cell: (p: TenantOverview["plans"][number]) => eur0(p.revenue) }] : []),
+    ...(money ? [{ key: "rev", header: "Revenue", cell: (p: TenantOverview["plans"][number]) => eur0(p.revenue) }] : [{ key: "active", header: "Active", cell: (p: TenantOverview["plans"][number]) => p.active }]),
   ];
   const attention = data?.attention ?? [];
-  const tabs = [
-    { key: "attention" as const, label: "Needs attention", badge: attention.length, tone: "warning" as const },
-    { key: "plans" as const, label: "Plans" },
-    ...(money ? [{ key: "resellers" as const, label: "Resellers" }] : []),
-  ];
   const details = (
-    <TabbedCard tabs={tabs} value={tab} onChange={setTab} className="h-full">
+    <TabbedCard
+      tabs={[{ key: "attention", label: "Needs attention", badge: attention.length, tone: "warning" }, { key: "plans", label: "Plans" }, ...(money ? [{ key: "resellers" as const, label: "Resellers" }] : [])]}
+      value={tab}
+      onChange={setTab}
+      className="h-full"
+    >
       {!data ? (
         <Skeleton className="h-full" />
       ) : tab === "attention" ? (
@@ -428,56 +395,84 @@ function TenantDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared & {
     </TabbedCard>
   );
 
-  return (
-    <Layout
-      fit={fit}
-      stale={stale}
-      kpis={kpis}
-      top={money ? [live, dataChart, moneyChart] : [live, dataChart]}
-      bottom={money ? [donutVolume, donutCost, ranked, details] : [donutVolume, ranked, details]}
+  const topCountries = (
+    <TopCountriesCard
+      title={focused ? "Top countries · click one to switch" : "Top countries"}
+      metric={cm}
+      onMetric={setCountryMetric}
+      metrics={money ? ([["revenue", "Revenue"], ["bytes", "Data"]] as const) : ([["bytes", "Data"]] as const)}
+      rows={countries.map((c) => ({ iso2: c.iso2, name: c.name, value: cm === "bytes" ? c.bytes : c.revenue, display: cm === "bytes" ? gb(c.bytes) : eur0(c.revenue) }))}
+      selected={focused}
+      onSelect={focus}
+      onOpen={(iso2) => router.push(openUsage({ country: iso2 }))}
+      loading={!data}
+      className="h-full"
     />
   );
+  const networksCard = (
+    <NetworksRankCard
+      metric={nm}
+      onMetric={setNetworkMetric}
+      metrics={money ? ([["bytes", "Data"], ["cost", "Cost"], ["profit", "Profit"]] as const) : ([["bytes", "Data"]] as const)}
+      rows={networks.map((n) => ({ id: n.id, label: shortOperator(n.operator, n.country), code: n.iso2, value: nm === "bytes" ? n.bytes : n[nm], display: nm === "bytes" ? gb(n.bytes) : eur0(n[nm]), href: openUsage({ network: n.id }) }))}
+      moreHref={openUsage({})}
+      loading={!data}
+      className="h-full"
+    />
+  );
+
+  const pm = money ? planMetric : "sold";
+  const mix = planMix(data?.plans ?? [], (p) => (pm === "sold" ? p.sold : p.revenue), (p) => (money ? p.revenue : p.sold));
+  const planCard = (
+    <DonutCard
+      title="Plan mix"
+      slices={mix.slices}
+      colorOf={mix.colorOf}
+      format={pm === "sold" ? (v) => Math.round(v).toLocaleString("en-GB") : eur0}
+      totalLabel={pm === "sold" ? "plans sold" : "revenue"}
+      empty="No plans sold or used in this period"
+      action={money ? <Seg label="Plan mix measure" value={planMetric} onChange={setPlanMetric} options={[["revenue", "Revenue"], ["sold", "Sold"]] as const} /> : undefined}
+      className="h-full"
+    />
+  );
+
+  return <Layout fit={fit} stale={stale} kpis={kpis} main={[globe, chart, details]} bottom={[topCountries, networksCard, planCard]} />;
 }
 
 // ---------------------------------------------------------------- reseller
 
-type ResellerCountry = "spend" | "bytes";
-const RESELLER_COUNTRY = [
-  ["spend", "Spend"],
-  ["bytes", "Data"],
-] as const;
-
-function ResellerDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared & { data: ResellerOverview | null }) {
+function ResellerDashboard({ data, q, fit, stale, focus }: Shared & { data: ResellerOverview | null }) {
   const router = useRouter();
-  const [countryMetric, setCountryMetric] = useState<ResellerCountry>("spend");
+  const [measure, setMeasure] = useState<"spend" | "data">("spend");
+  const [countryMetric, setCountryMetric] = useState<"spend" | "bytes">("spend");
+  const [planMetric, setPlanMetric] = useState<"spend" | "sold">("spend");
+  const [networkMetric, setNetworkMetric] = useState<"bytes" | "spend">("bytes");
   const [tab, setTab] = useState<"attention" | "plans" | "customers">("attention");
   const k = data?.kpis;
   const w = k?.wallet;
   const focused = q.iso2 ?? null;
   const per = q.granularity;
   const series = useMemo(() => data?.series ?? [], [data?.series]);
-  const dataRows: TrendRow[] = useMemo(() => series.map((b) => ({ bucket: b.bucket, label: axisLabel(b.bucket, per), estimated: b.estimated, total: b.bytes / GB, data: b.bytes / GB })), [series, per]);
-  const spendRows: TrendRow[] = useMemo(() => series.map((b) => ({ bucket: b.bucket, label: axisLabel(b.bucket, per), estimated: b.estimated, total: b.spend, spend: b.spend, previous: b.previousSpend ?? -1 })), [series, per]);
-  const dataInsight = useMemo(() => trendInsight(dataRows, gbOf, per), [dataRows, per]);
-  const spendInsight = useMemo(() => trendInsight(spendRows, eur0, per), [spendRows, per]);
+  const rows: TrendRow[] = useMemo(
+    () =>
+      series.map((b): TrendRow =>
+        measure === "data"
+          ? { bucket: b.bucket, label: axisLabel(b.bucket, per), estimated: b.estimated, total: b.bytes / GB, data: b.bytes / GB }
+          : { bucket: b.bucket, label: axisLabel(b.bucket, per), estimated: b.estimated, total: b.spend, spend: b.spend, previous: b.previousSpend ?? -1 },
+      ),
+    [series, per, measure],
+  );
+  const insight = useMemo(() => trendInsight(rows, measure === "data" ? gbOf : eur0, per), [rows, measure, per]);
+  const openUsage = (o: Record<string, string | null | undefined>) => `/esim/usage?${qs({ from: q.from, to: q.to, country: focused, ...o })}`;
   const openDay = (bucket: string) => {
     const [from, to] = bucketRange(bucket);
     router.push(`/esim/usage?${qs({ from, to, country: focused })}`);
   };
-  const openCountry = (iso2: string) => router.push(`/esim/usage?${qs({ country: iso2, from: q.from, to: q.to })}`);
-  const countries = useMemo(() => [...(data?.countries ?? [])].sort((a, b) => (countryMetric === "bytes" ? b.bytes - a.bytes : b.spend - a.spend)), [data?.countries, countryMetric]);
-  const glow = useMemo(() => Object.fromEntries(countries.map((c) => [c.iso2, countryMetric === "bytes" ? c.bytes : c.spend])), [countries, countryMetric]);
-  // the globe keeps the world view while a country is in focus (so another country can be picked)
-  const [world, setWorld] = useState(glow);
-  if (!focused && !stale && glow !== world) setWorld(glow);
-  const globeValues = focused ? world : glow;
   const names = useMemo(() => new Map([...(data?.options.countries ?? []).map((c) => [c.iso2, c.name] as const), ...(data?.countries ?? []).map((c) => [c.iso2, c.name] as const)]), [data?.options.countries, data?.countries]);
-  const networks = useMemo(() => data?.networks ?? [], [data?.networks]);
-  const featured = useMemo(() => featuredNetworks(networks, (n) => n.bytes, (n) => n.spend), [networks]);
-  const colors = useMemo(() => colorMap(featured), [featured]);
-  const colorOf = useCallback((key: string) => colors.get(key) ?? "var(--series-other)", [colors]);
-  const volumeSlices = useMemo(() => sliceFor(networks, featured, (n) => n.bytes), [networks, featured]);
-  const spendSlices = useMemo(() => sliceFor(networks, featured, (n) => n.spend), [networks, featured]);
+  const worldCountries = useWorld(data?.countries ?? NONE, focused, stale);
+  const countries = useMemo(() => [...worldCountries].sort((a, b) => (countryMetric === "bytes" ? b.bytes - a.bytes : b.spend - a.spend)), [worldCountries, countryMetric]);
+  const glow = useMemo(() => Object.fromEntries(countries.map((c) => [c.iso2, countryMetric === "bytes" ? c.bytes : c.spend])), [countries, countryMetric]);
+  const networks = useMemo(() => [...(data?.networks ?? [])].sort((a, b) => (networkMetric === "bytes" ? b.bytes - a.bytes : b.spend - a.spend)), [data?.networks, networkMetric]);
   const plansSold = (data?.plans ?? []).reduce((a, p) => a + p.sold, 0);
 
   const spotlight: Spotlight | null =
@@ -491,13 +486,24 @@ function ResellerDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared &
             { label: "Active eSIMs", value: k.activeEsims.value.toLocaleString("en-GB") },
             { label: "Plans sold", value: plansSold.toLocaleString("en-GB") },
           ],
-          href: `/esim/usage?${qs({ country: focused, from: q.from, to: q.to })}`,
+          href: openUsage({}),
         }
       : null;
 
   const kpis = (
-    <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-      <KpiTile label="Spend" value={k ? eur0(k.spend.value) : ""} trend={k?.spend} goodWhenUp={false} loading={!k} title="What your wallet paid for data in the period" />
+    <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+      <KpiTile
+        label="Spend"
+        value={k ? eur0(k.spend.value) : ""}
+        trend={k?.spend}
+        goodWhenUp={false}
+        note={k && k.estimatedSpend > 0 ? `incl. ${eurShort(k.estimatedSpend)} est.` : undefined}
+        loading={!k}
+        title={k ? `What your wallet paid for data in the period.${k.estimatedSpend > 0 ? ` ${eur0(k.estimatedSpend)} is estimated (provisional prices until tonight's report).` : ""}` : undefined}
+      />
+      <KpiTile label="Data used" value={k ? gb(k.bytes.value) : ""} trend={k?.bytes} loading={!k} />
+      <KpiTile label="Active eSIMs" value={k ? k.activeEsims.value.toLocaleString("en-GB") : ""} trend={k?.activeEsims} loading={!k} title="eSIMs that used data in the period" />
+      <KpiTile label="Plans sold" value={data ? plansSold.toLocaleString("en-GB") : ""} loading={!k} title="New eSIMs and added plans in the period" />
       <KpiTile
         label="Available balance"
         value={w ? eur2(w.available) : ""}
@@ -507,15 +513,11 @@ function ResellerDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared &
         loading={!k}
         title={w ? `At your average spend of the last 7 days (${eur0(w.avgDailySpend)} a day). Warning below ${eur0(w.lowThreshold)}.` : undefined}
       />
-      <KpiTile label="Data used" value={k ? gb(k.bytes.value) : ""} trend={k?.bytes} loading={!k} />
-      <KpiTile label="Active eSIMs" value={k ? k.activeEsims.value.toLocaleString("en-GB") : ""} trend={k?.activeEsims} loading={!k} title="eSIMs that used data in the period" />
-      <KpiTile label="Plans sold" value={data ? plansSold.toLocaleString("en-GB") : ""} loading={!k} title="New eSIMs and added plans in the period" />
-      <KpiTile label="Customers" value={k ? k.customers.toLocaleString("en-GB") : ""} loading={!k} href="/esim/customers" />
     </div>
   );
-  const live = (
+  const globe = (
     <LiveGlobeCard
-      values={globeValues}
+      values={glow}
       format={countryMetric === "bytes" ? gb : eur0}
       nameOf={(iso) => countryName(names, iso)}
       live={data?.live ?? null}
@@ -526,37 +528,22 @@ function ResellerDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared &
       className="h-full"
     />
   );
-  const dataChart = data ? (
+  const chart = data ? (
     <ChartFill>
       <TrendChart
-        title="Data used"
-        insight={dataInsight.text}
-        data={dataRows}
-        segments={[{ key: "data", label: "Data used", color: "var(--primary)" }]}
-        axisFormat={axisGb}
-        average={dataInsight.average}
+        title={measure === "data" ? "Data used" : "Spend"}
+        insight={insight.text}
+        data={rows}
+        segments={[measure === "data" ? { key: "data", label: "Data used", color: "var(--primary)" } : { key: "spend", label: "Spend", color: "var(--accent)" }]}
+        axisFormat={measure === "data" ? axisGb : axisEur}
+        overflowFormat={measure === "data" ? axisGb : eurShort}
+        average={insight.average}
         syncId={OVERVIEW_SYNC_ID}
         onSelect={openDay}
         selectHint="Click to open its usage"
-        tooltipRows={(r) => [{ label: "Data used", value: gbOf(r.total), color: "var(--primary)", strong: true }]}
-      />
-    </ChartFill>
-  ) : (
-    loadingCard
-  );
-  const spendChart = data ? (
-    <ChartFill>
-      <TrendChart
-        title="Spend"
-        insight={spendInsight.text}
-        data={spendRows}
-        segments={[{ key: "spend", label: "Spend", color: "var(--accent)" }]}
-        axisFormat={axisEur}
-        average={spendInsight.average}
-        syncId={OVERVIEW_SYNC_ID}
-        onSelect={openDay}
-        selectHint="Click to open its usage"
+        switcher={{ value: measure, onChange: (v) => setMeasure(v as "spend" | "data"), options: [["spend", "Spend"], ["data", "Data"]] as const }}
         tooltipRows={(r) => {
+          if (measure === "data") return [{ label: "Data used", value: gbOf(r.total), color: "var(--primary)", strong: true }];
           const prev = Number(r.previous);
           return [{ label: "Spend", value: eur2(r.total), color: "var(--accent)", strong: true }, ...(q.compare && prev >= 0 ? [{ label: "Previous period", value: eur2(prev) }] : [])];
         }}
@@ -565,45 +552,13 @@ function ResellerDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared &
   ) : (
     loadingCard
   );
-  const donutVolume = data ? <DonutCard title="Networks · data used" slices={volumeSlices} colorOf={colorOf} format={gb} totalLabel="total" className="h-full" /> : loadingCard;
-  const donutSpend = data ? <DonutCard title="Networks · spend" slices={spendSlices} colorOf={colorOf} format={eur0} totalLabel="total" className="h-full" /> : loadingCard;
-  const ranked = focused ? (
-    <TopCountriesCard
-      title={`Networks in ${countryName(names, focused)}`}
-      selectLabel="Narrow the dashboard to this network"
-      metric={countryMetric}
-      onMetric={setCountryMetric}
-      metrics={RESELLER_COUNTRY}
-      rows={[...networks]
-        .sort((a, b) => (countryMetric === "bytes" ? b.bytes - a.bytes : b.spend - a.spend))
-        .map((n) => ({ iso2: n.id, name: shortOperator(n.operator, n.country), value: countryMetric === "bytes" ? n.bytes : n.spend, display: countryMetric === "bytes" ? gb(n.bytes) : eur0(n.spend), flag: null }))}
-      selected={q.networkId ?? null}
-      onSelect={pickNetwork}
-      onOpen={() => openCountry(focused)}
-      loading={!data}
-      className="h-full"
-    />
-  ) : (
-    <TopCountriesCard
-      metric={countryMetric}
-      onMetric={setCountryMetric}
-      metrics={RESELLER_COUNTRY}
-      rows={countries.map((c) => ({ iso2: c.iso2, name: c.name, value: countryMetric === "bytes" ? c.bytes : c.spend, display: countryMetric === "bytes" ? gb(c.bytes) : eur0(c.spend) }))}
-      selected={null}
-      onSelect={focus}
-      onOpen={openCountry}
-      loading={!data}
-      className="h-full"
-    />
-  );
   const planCols: Col<ResellerOverview["plans"][number]>[] = [
-    { key: "name", header: "Plan", align: "left", className: "w-[40%]", cell: (p) => p.name },
+    { key: "name", header: "Plan", align: "left", className: "w-[44%]", cell: (p) => p.name },
     { key: "sold", header: "Sold", cell: (p) => p.sold },
-    { key: "active", header: "Active", cell: (p) => p.active },
     { key: "spend", header: "Spend", cell: (p) => eur0(p.spend) },
   ];
   const customerCols: Col<ResellerOverview["customers"][number]>[] = [
-    { key: "name", header: "Customer", align: "left", className: "w-[44%]", cell: (c) => c.name },
+    { key: "name", header: "Customer", align: "left", className: "w-[48%]", cell: (c) => c.name },
     { key: "esims", header: "eSIMs", cell: (c) => c.esims },
     { key: "spend", header: "Spend", cell: (c) => eur0(c.spend) },
   ];
@@ -630,5 +585,43 @@ function ResellerDashboard({ data, q, fit, stale, focus, pickNetwork }: Shared &
       )}
     </TabbedCard>
   );
-  return <Layout fit={fit} stale={stale} kpis={kpis} top={[live, dataChart, spendChart]} bottom={[donutVolume, donutSpend, ranked, details]} />;
+  const topCountries = (
+    <TopCountriesCard
+      title={focused ? "Top countries · click one to switch" : "Top countries"}
+      metric={countryMetric}
+      onMetric={setCountryMetric}
+      metrics={[["spend", "Spend"], ["bytes", "Data"]] as const}
+      rows={countries.map((c) => ({ iso2: c.iso2, name: c.name, value: countryMetric === "bytes" ? c.bytes : c.spend, display: countryMetric === "bytes" ? gb(c.bytes) : eur0(c.spend) }))}
+      selected={focused}
+      onSelect={focus}
+      onOpen={(iso2) => router.push(openUsage({ country: iso2 }))}
+      loading={!data}
+      className="h-full"
+    />
+  );
+  const networksCard = (
+    <NetworksRankCard
+      metric={networkMetric}
+      onMetric={setNetworkMetric}
+      metrics={[["bytes", "Data"], ["spend", "Spend"]] as const}
+      rows={networks.map((n) => ({ id: n.id, label: shortOperator(n.operator, n.country), code: n.iso2, value: networkMetric === "bytes" ? n.bytes : n.spend, display: networkMetric === "bytes" ? gb(n.bytes) : eur0(n.spend), href: openUsage({ network: n.id }) }))}
+      moreHref={openUsage({})}
+      loading={!data}
+      className="h-full"
+    />
+  );
+  const mix = planMix(data?.plans ?? [], (p) => (planMetric === "sold" ? p.sold : p.spend), (p) => p.spend);
+  const planCard = (
+    <DonutCard
+      title="Plan mix"
+      slices={mix.slices}
+      colorOf={mix.colorOf}
+      format={planMetric === "sold" ? (v) => Math.round(v).toLocaleString("en-GB") : eur0}
+      totalLabel={planMetric === "sold" ? "plans sold" : "spend"}
+      empty="No plans sold or used in this period"
+      action={<Seg label="Plan mix measure" value={planMetric} onChange={setPlanMetric} options={[["spend", "Spend"], ["sold", "Sold"]] as const} />}
+      className="h-full"
+    />
+  );
+  return <Layout fit={fit} stale={stale} kpis={kpis} main={[globe, chart, details]} bottom={[topCountries, networksCard, planCard]} />;
 }

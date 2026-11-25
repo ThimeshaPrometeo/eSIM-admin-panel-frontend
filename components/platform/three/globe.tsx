@@ -50,6 +50,8 @@ export type GlobeProps = {
    * the spin resumes on its own unless a country is focused.
    */
   live?: boolean;
+  /** Zoom buttons: a new `id` applies the action (in, out, or reset the view). */
+  zoomRequest?: { id: number; action: "in" | "out" | "reset" };
   /**
    * "coverage": covered countries lit, others dim (coverage page).
    * "all": all land lit (sign-in hero, dashboard).
@@ -358,6 +360,7 @@ function GlobeScene({
   spin,
   draggable = false,
   live = false,
+  zoomRequest,
   palette,
   theme,
   reduced,
@@ -558,6 +561,29 @@ function GlobeScene({
       focusTween.current?.kill();
     };
   }, [focusCountry, reduced, invalidate, onActivity, live]);
+
+  // ---- zoom buttons (wheel and pinch are handled with the pointer)
+  const zoomId = zoomRequest?.id;
+  useEffect(() => {
+    if (!zoomRequest) return;
+    const z = zoom.current;
+    if (zoomRequest.action === "in") z.tz = Math.max(2.4, z.tz / 1.25);
+    else if (zoomRequest.action === "out") z.tz = Math.min(5.2, z.tz * 1.25);
+    else {
+      z.tz = baseZ;
+      focusTween.current?.kill();
+      if (!focusNow.current) {
+        // back to the starting view, turning again
+        gsap.to(rot.current, { x: initialView[0] * DEG, duration: reduced ? 0 : 0.9, ease: "power3.inOut", onUpdate: () => invalidate() });
+        autoSpin.current = true;
+      }
+    }
+    if (reduced) z.z = z.tz;
+    onActivity();
+    invalidate();
+    // runs once per request
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomId]);
 
   // ---- arcs: surface-hugging great circles, gradient, pulse + ripple
   const arcPaths = useMemo(() => {

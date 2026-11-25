@@ -11,7 +11,7 @@
 import { ApiError } from "./errors";
 import { NETWORK_BY_ID, zoneNetworks } from "@/lib/demo/catalogue";
 import { ledgerRow, lowWalletCheck } from "@/lib/demo/billing";
-import { forEachPackageDay } from "@/lib/demo/rating";
+import { forEachPackageDay, packageNetworks } from "@/lib/demo/rating";
 import { available, esimView, walletOfReseller } from "@/lib/demo/derive";
 import type { DEsim, DOrder, DPackage, DState } from "@/lib/demo/model";
 import { holdFor, round2, type Buyer } from "@/lib/demo/pricing";
@@ -277,7 +277,8 @@ export const demoEsims = {
             ),
         )
         .filter((e) => !f.planId || e.plans.some((p) => p.planId === f.planId))
-        .filter((e) => !f.country || e.plans.some((p) => NETWORK_BY_ID.get(c.s.packages.find((x) => x.id === p.id)!.networkId)?.iso2 === f.country))
+        // any country on the trip (all legs and networks)
+        .filter((e) => !f.country || e.plans.some((p) => packageNetworks(c.s.packages.find((x) => x.id === p.id)!).some((id) => NETWORK_BY_ID.get(id)?.iso2 === f.country)))
         .sort((a, b) => (b.lastActivityAt ?? b.createdAt).localeCompare(a.lastActivityAt ?? a.createdAt));
       return paginate(rows, f.page, f.pageSize ?? 1000);
     }),

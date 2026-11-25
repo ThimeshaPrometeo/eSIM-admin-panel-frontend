@@ -1,14 +1,14 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { Cell, Pie, PieChart, Tooltip } from "recharts";
 import { cn } from "@/lib/utils";
 import { ChartBox } from "./chart-box";
 
 /*
- * A donut with its legend (dashboard networks): six items plus "Other";
- * colours follow the entity (pass the same `colorOf` to every donut so a
- * network keeps its colour), the total sits in the middle, and the legend
+ * A donut with its legend (dashboard plan mix): a few items plus "Other";
+ * colours follow the entity (`colorOf`, fixed per item so a switch of measure
+ * doesn't repaint it), the total sits in the middle, and the legend
  * carries every label, value and share, so colour is never the only cue.
  * Hovering a legend row or a slice highlights it.
  */
@@ -47,6 +47,7 @@ export const DonutCard = memo(function DonutCard({
   colorOf,
   format,
   totalLabel,
+  action,
   empty = "No usage in this period",
   className,
 }: {
@@ -56,6 +57,8 @@ export const DonutCard = memo(function DonutCard({
   colorOf: (key: string) => string;
   format: (v: number) => string;
   totalLabel: string;
+  /** In the header, right (a measure switch). */
+  action?: ReactNode;
   empty?: string;
   className?: string;
 }) {
@@ -70,7 +73,10 @@ export const DonutCard = memo(function DonutCard({
       )}
       aria-label={title}
     >
-      <h2 className="mb-2 truncate text-body font-semibold">{title}</h2>
+      <header className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="min-w-0 truncate text-body font-semibold">{title}</h2>
+        {action}
+      </header>
       {total <= 0 ? (
         <p className="m-auto text-small text-fg-3">{empty}</p>
       ) : (

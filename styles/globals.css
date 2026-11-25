@@ -25,6 +25,9 @@
   color-scheme: dark;
 
   --bg: #050a14; /* Midnight Ink */
+  /* The product mark (lib/brand/logo.ts): Azure → Emerald on dark, single-colour Midnight Ink on light */
+  --logo-from: #0080ff;
+  --logo-to: #00e5a0;
   /* Categorical chart series (validated for CVD and contrast on the dark card surface):
      blue, orange, aqua, yellow, magenta, violet; "Other" is neutral. Green and red are left out (status). */
   --series-1: #3987e5;
@@ -92,6 +95,8 @@
   color-scheme: light;
 
   --bg: #f5f8fc;
+  --logo-from: #050a14;
+  --logo-to: #050a14;
   /* same hues stepped for light surfaces; legends always carry the label and value too */
   --series-1: #2a78d6;
   --series-2: #eb6834;

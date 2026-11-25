@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, X } from "lucide-react";
+import { ArrowRight, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { countryFlag } from "@/lib/platform/coverage";
 import { formatRelative } from "@/lib/platform/dates";
 import type { LiveEvent } from "@/lib/platform/types";
@@ -64,6 +64,8 @@ export function LiveGlobeCard({
 }) {
   const now = useNow(5000);
   const [hover, setHover] = useState<string | null>(null);
+  const [zoomReq, setZoomReq] = useState<{ id: number; action: "in" | "out" | "reset" } | undefined>(undefined);
+  const zoom = (action: "in" | "out" | "reset") => setZoomReq((r) => ({ id: (r?.id ?? 0) + 1, action }));
   // memoised: the globe re-shades only when the figures change
   const weights = useMemo(() => {
     const max = Math.max(0, ...Object.values(values));
@@ -140,6 +142,7 @@ export function LiveGlobeCard({
           onHoverCountry={setHover}
           initialView={[30, 25]}
           spin={0.07}
+          zoomRequest={zoomReq}
         />
         {hoverLabel ? (
           <div
@@ -168,11 +171,27 @@ export function LiveGlobeCard({
             )}
           </div>
         ) : null}
-        <p className="pointer-events-none absolute bottom-1 right-3 text-[10px] text-fg-3">
-          {selected
-            ? "Click another country to switch"
-            : "Click a country to focus · drag · scroll to zoom"}
-        </p>
+        <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-fg-3">{selected ? "Click another country to switch" : "Click a country to focus"}</p>
+        <div className="glass-pop absolute bottom-1.5 right-2 z-10 flex items-center gap-0.5 rounded-full p-0.5" role="toolbar" aria-label="Globe zoom">
+          {(
+            [
+              ["in", "Zoom in", Plus],
+              ["out", "Zoom out", Minus],
+              ["reset", "Reset the view", RotateCcw],
+            ] as const
+          ).map(([action, label, Icon]) => (
+            <button
+              key={action}
+              type="button"
+              onClick={() => zoom(action)}
+              aria-label={label}
+              title={label}
+              className="grid size-6 place-items-center rounded-full text-fg-2 transition-colors hover:bg-surface-3 hover:text-fg focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <Icon className={action === "reset" ? "size-3" : "size-3.5"} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
       </div>
       {selected ? (
         // the focused country's figures replace the feed, so the globe itself stays in view

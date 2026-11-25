@@ -258,6 +258,11 @@ files. If a page needs something the design system doesn't have, add it there fi
   (demo events in demo mode); "All systems operational" shows only when the health check says so.
 - **No company name in the UI.** The logo mark only, until tenant settings (white-label) supply the
   brand name and logo.
+- **The default mark** is hand-built in `lib/brand/logo.ts` (64-unit grid, one stroke weight) and drawn
+  inline by `LogoMark` (Azure → Emerald on dark, Midnight Ink on light via `--logo-from` / `--logo-to`;
+  a tenant's image replaces it through `src`). `pnpm build:logo` regenerates `public/brand/*` (gradient,
+  white and ink SVG/PNG, favicon, 512 px app icon) and `app/icon.svg`, `app/favicon.ico`,
+  `app/apple-icon.png`; a test fails if they drift. The original concept is `docs/reference/logo-concept.jpg`.
 - WebGL reads colours through `themeTokens()`, which lets the browser convert any CSS colour (oklch, lab,
   …) to RGB; never parse colour strings by hand for three.js.
 

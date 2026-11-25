@@ -510,3 +510,110 @@ export function TabbedCard<K extends string>({
     </section>
   );
 }
+
+// ------------------------------------------------------------------- supply
+
+export type SupplyLine = { label: string; value: string; note: string; level: RunwayLevel; href: string; title?: string };
+const LEVEL_RANK: Record<RunwayLevel, number> = { ok: 0, warning: 1, critical: 2 };
+
+/** One tile for what keeps sales running: the Yesim balance runway and the free eSIM stock (amber/red from Settings). */
+export function SupplyTile({ lines, loading, className }: { lines: SupplyLine[]; loading?: boolean; className?: string }) {
+  const worst = lines.reduce<RunwayLevel>((w, l) => (LEVEL_RANK[l.level] > LEVEL_RANK[w] ? l.level : w), "ok");
+  return (
+    <div
+      className={cn(
+        "glass-card flex min-w-0 flex-col justify-center gap-0.5 px-3 py-2",
+        worst === "warning" && "bg-[color-mix(in_oklch,var(--warning)_7%,var(--glass))]",
+        worst === "critical" && "bg-[color-mix(in_oklch,var(--danger)_9%,var(--glass))]",
+        className,
+      )}
+    >
+      <span className="text-small text-fg-2">Supply</span>
+      {loading ? (
+        <Skeleton className="h-9 w-full" />
+      ) : (
+        lines.map((l) => (
+          <Link
+            key={l.label}
+            href={l.href}
+            title={l.title}
+            className="-mx-1 flex min-w-0 items-baseline gap-1.5 rounded px-1 text-[12px] leading-[18px] transition-colors hover:bg-surface-3/40 focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <span aria-hidden="true" className={cn("size-1.5 shrink-0 self-center rounded-full", LEVEL_DOT[l.level])} />
+            <span className="min-w-0 flex-1 truncate text-fg-2">{l.label}</span>
+            <span className="shrink-0 font-semibold tabular text-fg">{l.value}</span>
+            <span className={cn("w-[52px] shrink-0 text-right text-[11px] tabular", LEVEL_TEXT[l.level])}>
+              <span className="sr-only">{LEVEL_WORD[l.level]}</span>
+              {l.note}
+            </span>
+          </Link>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------- networks
+
+export type NetworkRankRow = { id: string; label: string; code: string; value: number; display: string; href: string };
+
+/** Ranked networks: the top 8 with country codes, each opening Usage for that network, then "+N more networks". */
+export function NetworksRankCard<M extends string>({
+  metric,
+  onMetric,
+  metrics,
+  rows,
+  moreHref,
+  loading,
+  className,
+}: {
+  metric: M;
+  onMetric: (m: M) => void;
+  metrics: readonly (readonly [M, string])[];
+  /** Sorted by the chosen metric. */
+  rows: NetworkRankRow[];
+  moreHref: string;
+  loading?: boolean;
+  className?: string;
+}) {
+  const top = rows.slice(0, 8);
+  const rest = rows.length - top.length;
+  const max = Math.max(0, ...top.map((r) => r.value));
+  const total = rows.reduce((a, r) => a + Math.max(0, r.value), 0);
+  return (
+    <Panel title="Networks" className={className} action={<Seg value={metric} onChange={onMetric} options={metrics} label="Rank networks by" />}>
+      {loading ? (
+        <Skeleton className="h-full" />
+      ) : top.length === 0 ? (
+        <p className="m-auto text-small text-fg-3">No usage in this period</p>
+      ) : (
+        <>
+          <ol className="grid min-h-0 flex-1 grid-flow-col grid-cols-2 grid-rows-4 gap-x-5 gap-y-1">
+            {top.map((r, i) => (
+              <li key={r.id} className="min-w-0">
+                <Link href={r.href} className="group block rounded-control px-1 py-0.5 transition-colors hover:bg-surface-3/40 focus-visible:outline-2 focus-visible:outline-primary" title={`Open usage on ${r.label}`}>
+                  <span className="flex min-w-0 items-baseline gap-1.5 text-[12px]">
+                    <span className="w-3 shrink-0 text-[11px] text-fg-3 tabular">{i + 1}</span>
+                    <span className="min-w-0 truncate text-fg">{r.label}</span>
+                    <span className="shrink-0 rounded bg-surface-3/70 px-1 text-[10px] font-medium text-fg-2">{r.code}</span>
+                    <span className="ml-auto shrink-0 font-medium tabular text-fg">{r.display}</span>
+                    <span className="w-8 shrink-0 text-right text-[11px] text-fg-3 tabular">{total > 0 ? `${Math.round((Math.max(0, r.value) / total) * 100)}%` : ""}</span>
+                  </span>
+                  <span className="ml-[18px] mt-0.5 block h-1 overflow-hidden rounded-full bg-surface-3/60" aria-hidden="true">
+                    <span className="block h-full rounded-full bg-[var(--series-1)]" style={{ width: `${max > 0 ? Math.max(2, (Math.max(0, r.value) / max) * 100) : 0}%` }} />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+          {rest > 0 ? (
+            <Link href={moreHref} className="mt-1 inline-flex items-center gap-1 self-start rounded text-small font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-primary">
+              +{rest} more networks
+              <ChevronRight aria-hidden="true" className="size-3.5" strokeWidth={2} />
+            </Link>
+          ) : null}
+        </>
+      )}
+    </Panel>
+  );
+}

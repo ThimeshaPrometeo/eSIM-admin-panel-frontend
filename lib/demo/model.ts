@@ -7,7 +7,7 @@ import type { Grants } from "@/lib/platform/permission-matrix";
 import type { EsimStatus, HoldStatus, InstallStatus, OrderStatus, SuspendedBy, TopupStatus } from "@/lib/platform/status";
 import type { AlertType, LedgerType, Role } from "@/lib/platform/types";
 
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 export type DUser = {
   id: string;
@@ -150,10 +150,15 @@ export type DPackage = {
   limitBytes: number;
   state: PackageState;
   adminBlocked: boolean;
-  /** Network the phone mostly used (drives country and price). */
+  /** Network the phone uses now (the last leg of its trip; drives the country shown). */
   networkId: string;
   /** A second network in the same country used on some days (roaming between operators), or null. */
   altNetworkId: string | null;
+  /**
+   * A trip across countries: from usage day `from` on, the phone is on these
+   * networks. Without legs the package stays on `networkId` / `altNetworkId`.
+   */
+  legs?: { from: number; networkId: string; altNetworkId: string | null }[];
   holdId: string;
   /** Charged so far, split by status (EUR, in the buyer's prices). */
   chargedFinal: number;

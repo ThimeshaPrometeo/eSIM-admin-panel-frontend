@@ -28,54 +28,100 @@ function instant(today: string, offset: number, hour = 10, minute = 0) {
   return new Date(`${d}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+05:30`).toISOString();
 }
 
-const POPULAR: Record<string, number> = {
-  IT: 6, FR: 4, ES: 4, DE: 3, GB: 3, GR: 3, PT: 2, NL: 2, CH: 1, AT: 1, TH: 5, JP: 4, SG: 3, AE: 4, LK: 4, IN: 2, MV: 3,
-  ID: 2, MY: 2, VN: 2, KR: 2, US: 4, TR: 3, AU: 2, HK: 2, CA: 1, MX: 1, EG: 1, ZA: 1,
-};
-
-function pickNetwork(rng: Rng, zoneId: string, opts: { maxCost?: number; minCost?: number; exclude?: readonly string[] } = {}): Network {
-  const nets = zoneNetworks(zoneId).filter(
-    (n) =>
-      isPriced(n) &&
-      n.iso2 !== "--" &&
-      !opts.exclude?.includes(n.iso2) &&
-      (opts.maxCost === undefined || n.costPerMb! <= opts.maxCost) &&
-      (opts.minCost === undefined || n.costPerMb! >= opts.minCost),
-  );
-  const countries = [...new Set(nets.map((n) => n.iso2))];
-  const iso = rng.weighted(countries.map((c) => [c, POPULAR[c] ?? 0.25] as const));
-  return rng.pick(nets.filter((n) => n.iso2 === iso));
-}
-
 /*
- * Where our customers really use data (docs/demo-data.md §2): Italy first,
- * then the UAE, Morocco and Spain by revenue. Each plan zone has a mix of
- * destinations ("*" = any other country in the zone, cheap networks on the
- * Worldwide plan), and each destination a mix of operators.
+ * Where our customers really use data (docs/demo-data.md §2). Each plan zone
+ * has named destinations with their weight; every other country in the zone
+ * shares the zone's tail weight, cheaper countries more often (real traffic
+ * goes where data is affordable). By data: Italy, Spain, the UAE, Thailand
+ * and Morocco carry about 60–70%; by revenue Morocco and the UAE rank higher
+ * because their networks are expensive.
  */
-const ZONE_MIX: Record<string, readonly (readonly [string, number])[]> = {
-  lz79313: [["IT", 1]],
-  "z-europe30": [["IT", 55], ["ES", 33], ["*", 12]],
-  "z-asia": [["AE", 70], ["*", 30]],
-  "z-world": [["MA", 16], ["AE", 20], ["*", 64]],
+const ZONE_MIX: Record<string, { named: readonly (readonly [string, number])[]; tail: number }> = {
+  lz79313: { named: [["IT", 1]], tail: 0 },
+  "z-europe30": { named: [["IT", 31], ["ES", 26]], tail: 43 },
+  "z-asia": { named: [["AE", 44], ["TH", 34]], tail: 26 },
+  "z-world": { named: [["MA", 20], ["AE", 8], ["TH", 6]], tail: 66 },
 };
+/** Operator shares where we know them; elsewhere a country's networks get falling weights. */
 const OPERATOR_MIX: Record<string, readonly (readonly [RegExp, number])[]> = {
-  IT: [[/Iliad/, 35], [/Vodafone/, 31], [/Wind/, 31], [/TIM/, 2.5]],
-  ES: [[/Movistar/, 72], [/Orange/, 14], [/Vodafone/, 14]],
+  IT: [[/Iliad/, 31], [/Vodafone/, 30], [/Wind/, 30], [/TIM/, 9]],
+  ES: [[/Movistar/, 58], [/Orange/, 24], [/Vodafone/, 18]],
   AE: [[/^DU\b/, 50], [/Etisalat/, 50]],
+  TH: [[/AIS/, 45], [/DTAC/, 35], [/True/, 20]],
   MA: [[/Maroc Telecom/, 1]],
 };
+const FALLING = [1, 0.7, 0.5, 0.35, 0.25, 0.18];
 
-/** A plan's network: a destination from the zone's mix, then an operator there. */
-function pickDestination(rng: Rng, zoneId: string, maxCost?: number): Network {
+const zoneCountryCache = new Map<string, Map<string, Network[]>>();
+/** The zone's priced networks, by country. */
+function zoneCountries(zoneId: string) {
+  let m = zoneCountryCache.get(zoneId);
+  if (!m) {
+    m = new Map();
+    for (const n of zoneNetworks(zoneId)) {
+      if (!isPriced(n) || n.iso2 === "--") continue;
+      const list = m.get(n.iso2) ?? [];
+      list.push(n);
+      m.set(n.iso2, list);
+    }
+    zoneCountryCache.set(zoneId, m);
+  }
+  return m;
+}
+
+/** Tail countries: cheaper ones are visited more (by the cheapest network's €/GB). */
+function cheapness(nets: Network[]) {
+  const perGb = Math.min(...nets.map((n) => n.costPerMb! * 1024));
+  // above €4/GB a single traveller costs as much as dozens in Europe: not in the demo's tail
+  return perGb <= 1 ? 1 : perGb <= 2 ? 0.3 : perGb <= 4 ? 0.02 : 0;
+}
+
+/** A country to visit in a zone (not one of `exclude`). */
+function pickCountry(rng: Rng, zoneId: string, exclude: string[] = []): string {
   const mix = ZONE_MIX[zoneId];
-  if (!mix) return pickNetwork(rng, zoneId, { maxCost });
-  const iso = rng.weighted(mix);
-  if (iso === "*") return pickNetwork(rng, zoneId, { maxCost, exclude: mix.map(([c]) => c) });
-  const ops = OPERATOR_MIX[iso] ?? [];
-  const nets = zoneNetworks(zoneId).filter((n) => n.iso2 === iso && isPriced(n));
-  const weighted = nets.map((n) => [n, ops.find(([re]) => re.test(n.operator))?.[1] ?? 0] as const).filter(([, w]) => w > 0);
-  return weighted.length ? rng.weighted(weighted) : rng.pick(nets);
+  const countries = zoneCountries(zoneId);
+  const named = new Map(mix?.named ?? []);
+  const tail = [...countries].filter(([iso]) => !named.has(iso) && !exclude.includes(iso));
+  const tailTotal = tail.reduce((a, [, nets]) => a + cheapness(nets), 0) || 1;
+  const options: [string, number][] = [
+    ...[...named].filter(([iso]) => countries.has(iso) && !exclude.includes(iso)),
+    ...tail.map(([iso, nets]) => [iso, ((mix?.tail ?? 1) * cheapness(nets)) / tailTotal] as [string, number]),
+  ];
+  return options.length ? rng.weighted(options) : [...countries.keys()][0]!;
+}
+
+/** A network in a country: known operator shares, else falling weights in a stable order. */
+function pickOperator(rng: Rng, zoneId: string, iso: string, not?: string): Network | null {
+  const nets = (zoneCountries(zoneId).get(iso) ?? []).filter((n) => n.id !== not);
+  if (!nets.length) return null;
+  const ops = OPERATOR_MIX[iso];
+  const known = ops ? nets.map((n) => [n, ops.find(([re]) => re.test(n.operator))?.[1] ?? 0] as const).filter(([, w]) => w > 0) : [];
+  if (known.length) return rng.weighted(known);
+  // elsewhere: networks above €4/GB are left out (one traveller there would dwarf the rest), cheaper ones are more likely
+  const affordable = nets.filter((n) => n.costPerMb! * 1024 <= 4);
+  const ordered = (affordable.length ? affordable : nets).sort((a, b) => a.costPerMb! - b.costPerMb! || a.id.localeCompare(b.id));
+  return rng.weighted(ordered.map((n, i) => [n, FALLING[i] ?? 0.05] as const));
+}
+
+/**
+ * A plan's trip: one country for a local plan, and for regional plans one to
+ * three countries (e.g. Italy, then France, then Spain), the usage days split
+ * between them. On some legs the phone also roams onto a second operator.
+ */
+function planTrip(rng: Rng, zoneId: string, days: number) {
+  const legsWanted = zoneId === "lz79313" ? 1 : rng.weighted([[1, 64], [2, 25], [3, 11]] as const);
+  const visited: string[] = [];
+  const cuts = [0, ...Array.from({ length: legsWanted - 1 }, () => Math.floor(rng.float(0.2, 0.85) * days))].sort((a, b) => a - b);
+  const legs: { from: number; networkId: string; altNetworkId: string | null }[] = [];
+  for (const from of cuts) {
+    const iso = pickCountry(rng, zoneId, visited);
+    visited.push(iso);
+    const net = pickOperator(rng, zoneId, iso);
+    if (!net) continue;
+    const alt = rng.chance(0.6) ? pickOperator(rng, zoneId, iso, net.id) : null;
+    legs.push({ from: legs.length ? Math.max(from, legs[legs.length - 1]!.from + 1) : 0, networkId: net.id, altNetworkId: alt?.id ?? null });
+  }
+  return legs;
 }
 
 export function createSeed(now: Date = new Date()): DState {
@@ -363,12 +409,10 @@ export function createSeed(now: Date = new Date()): DState {
   type PlanStory = "active" | "pending" | "expired" | "deleted";
 
   /** Adds a package with its order, hold and usage. `start` = first day of use (offset), null = not started. */
-  const addPackage = (e: DEsim, plan: DPlan, opts: { start: number | null; created: number; story: PlanStory; type: "new_esim" | "add_plan"; network?: Network; maxCost?: number }) => {
+  const addPackage = (e: DEsim, plan: DPlan, opts: { start: number | null; created: number; story: PlanStory; type: "new_esim" | "add_plan"; network?: Network }) => {
     const buyer = buyerOf(e.resellerId);
-    const network = opts.network ?? pickDestination(rng, plan.zoneId, opts.maxCost ?? (plan.zoneId === "z-world" ? 0.0015 : undefined));
-    // some phones also use a second operator in the same country on some days
-    const others = zoneNetworks(plan.zoneId).filter((n) => n.iso2 === network.iso2 && n.id !== network.id && isPriced(n) && (plan.zoneId !== "z-world" || n.costPerMb! <= 0.004));
-    const altNetworkId = !opts.network && others.length && rng.chance(0.7) ? rng.pick(others).id : null;
+    // the trip is planned once the number of usage days is known (below)
+    let legs = opts.network ? [{ from: 0, networkId: opts.network.id, altNetworkId: null as string | null }] : null;
     const holdAmount = holdFor(s, plan, buyer);
     const limitMb = plan.dataBytes / BYTES.MB;
     const pkgId = id("pk");
@@ -399,11 +443,15 @@ export function createSeed(now: Date = new Date()): DState {
         total += rounded;
       }
       s.usage[pkgId] = { start: addDays(today, opts.start), mb } satisfies DUsage;
+      legs ??= planTrip(rng, plan.zoneId, days);
       const depleted = total >= limitMb - 0.05;
       state = opts.story === "deleted" ? "deleted" : opts.start + plan.validityDays <= 0 ? (depleted ? "depleted" : "expired") : depleted ? "depleted" : "active";
       if (deletedOn !== null) expiresAt = at(deletedOn, 12);
     }
 
+    // not started yet: where it will be used
+    legs ??= planTrip(rng, plan.zoneId, 1);
+    const current = legs[legs.length - 1]!;
     const live = state === "active" || state === "pending_activation";
     const hold: DHold = {
       id: holdId,
@@ -431,8 +479,9 @@ export function createSeed(now: Date = new Date()): DState {
       limitBytes: plan.dataBytes,
       state,
       adminBlocked: false,
-      networkId: network.id,
-      altNetworkId,
+      networkId: current.networkId,
+      altNetworkId: current.altNetworkId,
+      ...(legs.length > 1 ? { legs } : {}),
       holdId,
       chargedFinal: 0,
       chargedEstimated: 0,
@@ -486,7 +535,7 @@ export function createSeed(now: Date = new Date()): DState {
     return e;
   };
 
-  const PLAN_WEIGHTS = [["p-it3", 7], ["p-it1", 1], ["p-it5", 5], ["p-eu5", 3], ["p-eu10", 5], ["p-eu20", 3], ["p-asia5", 2], ["p-world10", 2]] as const;
+  const PLAN_WEIGHTS = [["p-it3", 4], ["p-it1", 1], ["p-it5", 3], ["p-eu5", 4], ["p-eu10", 6], ["p-eu20", 4], ["p-asia5", 4], ["p-world10", 3]] as const;
   // eSIMs sold in the last 90 days, per buyer (null = direct sales)
   const COUNTS: [string | null, number][] = [[null, 25], ["r2", 445], ["r1", 360], ["r3", 190], ["r5", 8], ["r4", 6], ["r6", 4]];
 
@@ -574,8 +623,9 @@ export function createSeed(now: Date = new Date()): DState {
     // heavy use on an expensive network: about €14 more than the hold
     const price = buyerPricePerMb(s, { kind: "reseller", resellerId: "r5" }, expensive, pkg.planId)!;
     const u = s.usage[pkg.id]!;
-    const per = (hold.amount + 14.4) / price / u.mb.length;
-    u.mb = u.mb.map(() => Math.round(per * 10) / 10);
+    // the last two days are estimated (priced at the zone's highest rate): this phone stopped two days ago
+    const per = (hold.amount + 14.4) / price / (u.mb.length - 2);
+    u.mb = u.mb.map((_, i) => (i >= u.mb.length - 2 ? 0 : Math.round(per * 10) / 10));
     const charged = packageCharges(s, pkg);
     pkg.chargedFinal = charged.final;
     pkg.chargedEstimated = charged.estimated;

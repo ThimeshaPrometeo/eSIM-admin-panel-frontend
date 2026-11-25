@@ -48,10 +48,15 @@ export function UsageClient() {
     const c = params.get("country")?.toUpperCase();
     return c && /^[A-Z]{2}$/.test(c) ? c : null;
   });
+  // ?network= from the dashboard's networks list
+  const [networkId, setNetworkId] = useState<string | null>(() => {
+    const n = params.get("network");
+    return n && /^[a-z0-9-]{1,40}$/i.test(n) ? n : null;
+  });
   const [unit, setUnit] = useState<DataUnit>("GB");
   const { data, loading, error } = useResource(
-    () => operationsApi.getUsageReport(period, { resellerId, planId, iso2 }),
-    [period.from, period.to, period.granularity, resellerId, planId, iso2],
+    () => operationsApi.getUsageReport(period, { resellerId, planId, iso2, networkId }),
+    [period.from, period.to, period.granularity, resellerId, planId, iso2, networkId],
   );
   const chargeLabel = isTenant ? "Charged" : "Your cost";
 
@@ -161,6 +166,7 @@ export function UsageClient() {
         {isTenant ? <ResellerSelect value={resellerId} onChange={setResellerId} all="Everyone" /> : null}
         <FilterSelect label="Plan" value={planId} onChange={setPlanId} all="Any plan" options={(data?.options.plans ?? []).map((p) => ({ value: p.id, label: p.name }))} />
         <FilterSelect label="Country" value={iso2} onChange={setIso2} all="Any country" options={(data?.options.countries ?? []).map((c) => ({ value: c.iso2, label: `${countryFlag(c.iso2)} ${c.name}` }))} />
+        <FilterSelect label="Network" value={networkId} onChange={setNetworkId} all="Any network" options={(data?.options.networks ?? []).map((n) => ({ value: n.id, label: n.name }))} className="sm:w-48" />
       </div>
       <GlassCard className={`grid shrink-0 grid-cols-2 gap-6 ${isTenant ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <StatBlock size="sm" label="Data used" value={data?.totals.bytes ?? 0} format={(n) => formatBytes(n, unit)} loading={!data} hint={data ? `${data.totals.esims} eSIM${data.totals.esims === 1 ? "" : "s"}` : undefined} />

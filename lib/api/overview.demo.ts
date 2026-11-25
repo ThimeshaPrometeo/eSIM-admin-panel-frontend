@@ -12,7 +12,7 @@ import { forEachBookedLine, type BookedFilter } from "@/lib/demo/booked";
 import { CATALOGUE, NETWORK_BY_ID } from "@/lib/demo/catalogue";
 import { available, planState, walletOfReseller, walletSummary } from "@/lib/demo/derive";
 import type { DState } from "@/lib/demo/model";
-import { forEachPackageDay, round2 } from "@/lib/demo/rating";
+import { forEachPackageDay, packageNetworks, round2 } from "@/lib/demo/rating";
 import { read } from "@/lib/demo/run";
 import { authorize, type Caller } from "@/lib/demo/session";
 import { supplierBalance } from "@/lib/demo/supplier";
@@ -22,7 +22,10 @@ import { bucketOf, bucketsIn } from "@/lib/platform/period";
 import type { AttentionItem, LiveEvent, Overview, OverviewOptions, OverviewQuery, ResellerOverview, RunwayLevel, TenantOverview } from "@/lib/platform/types";
 
 const MB = 1048576;
-/** The Yesim runway uses the average cost of the last 7 full days (today is still running). */
+/**
+ * The Yesim runway uses the average cost of the last 7 final days: today and
+ * yesterday are estimated at the zone's highest price and would overstate the pace.
+ */
 const PACE_DAYS = 7;
 /** Free-stock days use the same pace as the Inventory page: eSIMs sold in the last 30 days ÷ 30. */
 const STOCK_PACE_DAYS = 30;
@@ -61,6 +64,7 @@ function collect(s: DState, q: OverviewQuery, filter: BookedFilter) {
   const buckets = bucketsIn(q);
   const prevBuckets = bucketsIn({ from: prevFrom, to: addDays(q.from, -1), granularity: q.granularity });
   const cur = acc();
+  const est = acc();
   const prev = acc();
   const series = new Map(buckets.map((b) => [b, { ...acc(), estimated: false }]));
   const prevSeries = new Map(prevBuckets.map((b) => [b, acc()]));
@@ -84,6 +88,7 @@ function collect(s: DState, q: OverviewQuery, filter: BookedFilter) {
         return;
       }
       add(cur, l);
+      if (l.estimated) add(est, l);
       const slot = series.get(bucketOf(l.date, q.granularity))!;
       add(slot, l);
       if (l.estimated) slot.estimated = true;
@@ -98,7 +103,7 @@ function collect(s: DState, q: OverviewQuery, filter: BookedFilter) {
   );
   // previous buckets line up with the current ones by position
   const prevByIndex = prevBuckets.map((b) => prevSeries.get(b)!);
-  return { cur, prev, buckets, series, prevByIndex, byCountry, byNetwork, byOwner, byOwnerPrev, byPlan, byCustomer };
+  return { cur, est, prev, buckets, series, prevByIndex, byCountry, byNetwork, byOwner, byOwnerPrev, byPlan, byCustomer };
 }
 
 /** Orders sold in the period (completed, or waiting for funds), per plan. */
@@ -124,8 +129,7 @@ function filterOptions(s: DState, scope: string | null | undefined): OverviewOpt
     const o = owner.get(p.esimId) ?? null;
     if (scope && (scope === "direct" ? o !== null : o !== scope)) continue;
     if (!s.usage[p.id]) continue;
-    nets.add(p.networkId);
-    if (p.altNetworkId) nets.add(p.altNetworkId);
+    for (const n of packageNetworks(p)) nets.add(n);
     plans.add(p.planId);
   }
   const networks = [...nets].map((id) => NETWORK_BY_ID.get(id)!).filter(Boolean);
@@ -191,11 +195,18 @@ function tenantOverview(c: Caller, q: OverviewQuery): TenantOverview {
 
   // ---- runway: the whole account at the pace of the last 7 full days
   const today = s.seededOn;
-  const paceFrom = addDays(today, -PACE_DAYS);
-  const paceTo = addDays(today, -1);
+  const paceFrom = addDays(today, -(PACE_DAYS + 1));
+  const paceTo = addDays(today, -2);
   let paceCost = 0;
-  forEachPackageDay(s, (_p, _d, lines) => lines.forEach((l) => (paceCost += l.cost)), { from: paceFrom, to: paceTo });
-  const avgDailyCost = paceCost / PACE_DAYS;
+  // final lines only (a late report's day stays estimated, at the zone's highest price)
+  let paceDays = new Set<string>();
+  forEachPackageDay(s, (_p, d, lines) => lines.forEach((l) => {
+    if (l.estimated) return;
+    paceCost += l.cost;
+    paceDays.add(d);
+  }), { from: paceFrom, to: paceTo });
+  paceDays = paceDays.size ? paceDays : new Set([paceTo]);
+  const avgDailyCost = paceCost / Math.max(1, paceDays.size);
   const balance = supplierBalance(s).reported;
   const runwayDays = avgDailyCost > 0 ? balance / avgDailyCost : null;
   const st = s.settings;
@@ -288,6 +299,7 @@ function tenantOverview(c: Caller, q: OverviewQuery): TenantOverview {
       marginPercent: trend(money ? margin(d.cur.revenue, d.cur.cost) : 0, cmp(money ? margin(d.prev.revenue, d.prev.cost) : 0)),
       bytes: trend(d.cur.mb * MB, cmp(d.prev.mb * MB)),
       activeEsims: trend(d.cur.esims.size, cmp(d.prev.esims.size)),
+      estimated: { revenue: m(d.est.revenue), cost: m(d.est.cost), profit: money ? round2(round2(d.est.revenue) - round2(d.est.cost)) : 0 },
       supplier: {
         balance: money ? balance : 0,
         avgDailyCost: m(avgDailyCost),
@@ -331,10 +343,15 @@ function resellerOverview(c: Caller, q: OverviewQuery): ResellerOverview {
   const w = walletOfReseller(s, rid);
   const summary = walletSummary(s, w);
   const today = s.seededOn;
-  const paceFrom = addDays(today, -PACE_DAYS);
+  // the last 7 final days (estimated days are priced provisionally, at the zone's highest price)
   let paceSpend = 0;
-  forEachBookedLine(s, (l) => (paceSpend += l.charged), { resellerId: rid, from: paceFrom, to: addDays(today, -1) });
-  const avgDailySpend = paceSpend / PACE_DAYS;
+  const spendDays = new Set<string>();
+  forEachBookedLine(s, (l) => {
+    if (l.estimated) return;
+    paceSpend += l.charged;
+    spendDays.add(l.date);
+  }, { resellerId: rid, from: addDays(today, -(PACE_DAYS + 1)), to: addDays(today, -2) });
+  const avgDailySpend = paceSpend / Math.max(1, spendDays.size);
   const avail = available(s, w);
   const runwayDays = avgDailySpend > 0 ? avail / avgDailySpend : null;
   const outstanding = Number(summary.outstanding);
@@ -359,6 +376,7 @@ function resellerOverview(c: Caller, q: OverviewQuery): ResellerOverview {
       spend: trend(round2(d.cur.charged), cmp(round2(d.prev.charged))),
       bytes: trend(d.cur.mb * MB, cmp(d.prev.mb * MB)),
       activeEsims: trend(d.cur.esims.size, cmp(d.prev.esims.size)),
+      estimatedSpend: round2(d.est.charged),
       customers: s.customers.filter((x) => x.resellerId === rid).length,
       wallet: { available: round2(avail), outstanding, avgDailySpend: round2(avgDailySpend), runwayDays, level, lowThreshold: w.lowThreshold },
     },

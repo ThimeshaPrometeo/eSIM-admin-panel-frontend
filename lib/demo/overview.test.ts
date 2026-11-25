@@ -8,7 +8,6 @@ import { createSeed } from "./seed";
 import { __setLatency, __setState, db } from "./store";
 import { supplierBalance } from "./supplier";
 
-const GB = 1024 ** 3;
 const as = (userId: string) => (db().session = { userId, pendingMfaUserId: null });
 
 beforeEach(() => {
@@ -150,31 +149,91 @@ describe("dashboard overview (reseller)", () => {
 });
 
 describe("demo data shape (docs/demo-data.md)", () => {
-  it("about 900–1,000 GB and €900–1,000 Yesim cost a week; 57 free eSIMs; a Yesim balance near €5,000", async () => {
-    const o = await tenant(days(28, { compare: false }));
+  /** The last 28 final days (the two estimated days left out: they are priced provisionally). */
+  const finalWeeks = () => {
+    const today = db().seededOn;
+    return { from: addDays(today, -29), to: addDays(today, -2), granularity: "day" as const, compare: false };
+  };
+
+  it("about 900–1,000 GB and €1,000–1,400 Yesim cost a week on final days; 57 free eSIMs; a Yesim balance near €5,000", async () => {
+    // final lines only (late-report days are still estimated, at the zone's highest price)
+    const { forEachBookedLine } = await import("./booked");
+    const w = finalWeeks();
+    let mb = 0;
+    let cost = 0;
+    forEachBookedLine(db(), (l) => {
+      if (l.estimated) return;
+      mb += l.mb;
+      cost += l.cost;
+    }, { from: w.from, to: w.to });
     const weeks = 4;
-    expect(o.kpis.bytes.value / GB / weeks).toBeGreaterThan(750);
-    expect(o.kpis.bytes.value / GB / weeks).toBeLessThan(1100);
-    expect(o.kpis.cost.value / weeks).toBeGreaterThan(800);
-    expect(o.kpis.cost.value / weeks).toBeLessThan(1150);
+    expect(mb / 1024 / weeks).toBeGreaterThan(850);
+    expect(mb / 1024 / weeks).toBeLessThan(1100);
+    expect(cost / weeks).toBeGreaterThan(950);
+    expect(cost / weeks).toBeLessThan(1450);
+    const o = await tenant(w);
     expect(o.kpis.stock.free).toBe(57);
     expect(o.kpis.supplier.balance).toBeGreaterThan(4500);
     expect(o.kpis.supplier.balance).toBeLessThan(5600);
   });
 
-  it("top countries by revenue: Italy, UAE, Morocco, Spain", async () => {
+  it("a long tail: 60–90 countries and 150–250 networks, only priced ones", async () => {
     const o = await tenant(days(30));
-    expect(o.countries.slice(0, 4).map((c) => c.iso2)).toEqual(["IT", "AE", "MA", "ES"]);
+    expect(o.countries.length).toBeGreaterThanOrEqual(60);
+    expect(o.countries.length).toBeLessThanOrEqual(90);
+    expect(o.networks.length).toBeGreaterThanOrEqual(150);
+    expect(o.networks.length).toBeLessThanOrEqual(250);
+    const { NETWORK_BY_ID } = await import("./catalogue");
+    for (const n of o.networks) expect(NETWORK_BY_ID.get(n.id)?.costPerMb).not.toBeNull();
   });
 
-  it("the named networks lead: DU, Etisalat, Iliad, Vodafone, Wind, TIM, Maroc Telecom, Movistar", async () => {
+  it("the top 5 countries by data are Italy, Spain, UAE, Thailand and Morocco, carrying 60–70% of data", async () => {
+    const o = await tenant(finalWeeks());
+    const byData = [...o.countries].sort((a, b) => b.bytes - a.bytes);
+    expect(new Set(byData.slice(0, 5).map((c) => c.iso2))).toEqual(new Set(["IT", "ES", "AE", "TH", "MA"]));
+    const share = byData.slice(0, 5).reduce((a, c) => a + c.bytes, 0) / o.kpis.bytes.value;
+    expect(share).toBeGreaterThan(0.58);
+    expect(share).toBeLessThan(0.7);
+  });
+
+  it("by revenue the top 5 are Italy, UAE, Morocco, Spain and Thailand (expensive networks rank Morocco and the UAE higher)", async () => {
+    const o = await tenant(finalWeeks());
+    expect(new Set(o.countries.slice(0, 5).map((c) => c.iso2))).toEqual(new Set(["IT", "AE", "MA", "ES", "TH"]));
+  });
+
+  it("several networks per country, and some trips cross 2–3 countries", async () => {
     const o = await tenant(days(30));
-    const top = o.networks
-      .slice()
-      .sort((a, b) => b.cost - a.cost)
-      .slice(0, 8)
-      .map((n) => n.operator.split(" ")[0]);
-    expect(new Set(top)).toEqual(new Set(["DU", "Etisalat", "Iliad", "Vodafone", "Wind", "TIM", "Maroc", "Movistar"]));
+    expect(o.networks.filter((n) => n.iso2 === "IT").length).toBe(4);
+    expect(o.networks.filter((n) => n.iso2 === "ES").length).toBeGreaterThanOrEqual(3);
+    const { NETWORK_BY_ID } = await import("./catalogue");
+    const trips = db().packages.filter((p) => (p.legs?.length ?? 0) > 1);
+    expect(trips.length).toBeGreaterThan(100);
+    for (const p of trips.slice(0, 50)) {
+      const countries = new Set(p.legs!.map((l) => NETWORK_BY_ID.get(l.networkId)!.iso2));
+      expect(countries.size).toBe(p.legs!.length);
+      expect(p.legs!.length).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("estimated days are priced at the zone's highest network price; final days at the network's own", async () => {
+    const { forEachPackageDay, zoneMaxCost, costAt } = await import("./rating");
+    const s = db();
+    let checkedEstimated = 0;
+    let checkedFinal = 0;
+    forEachPackageDay(s, (p, date, lines) => {
+      const zone = s.plans.find((x) => x.id === p.planId)!.zoneId;
+      for (const l of lines) {
+        if (l.estimated) {
+          expect(l.costPerMb).toBe(zoneMaxCost(s, zone, date));
+          checkedEstimated++;
+        } else if (checkedFinal < 200) {
+          expect(l.costPerMb).toBe(costAt(s, l.networkId, date));
+          checkedFinal++;
+        }
+      }
+    }, { from: addDays(s.seededOn, -3) });
+    expect(checkedEstimated).toBeGreaterThan(0);
+    expect(checkedFinal).toBeGreaterThan(0);
   });
 });
 
