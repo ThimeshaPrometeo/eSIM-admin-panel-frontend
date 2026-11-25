@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState, type FormEvent } from "react";
+import { useId, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, ArrowRight, Check, Copy, Download, KeyRound, Lock, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, Download, Lock, ShieldCheck } from "lucide-react";
 import { downloadRecoveryCodes, groupSecret } from "@/lib/platform/two-factor";
 import type { TotpSetup } from "@/lib/platform/types";
 import { cn } from "@/lib/utils";
@@ -33,154 +33,6 @@ function BackLink({ href = "/", children = "Back to sign in" }: { href?: string;
       <ArrowLeft aria-hidden="true" className="size-[18px]" strokeWidth={1.75} />
       {children}
     </Link>
-  );
-}
-
-/** Forgot password (spec 8.31): one answer whether or not the account exists. */
-export function ForgotPasswordCard({
-  onSubmit,
-  busy,
-  error,
-  sent,
-}: {
-  onSubmit: (identifier: string) => void | Promise<void>;
-  busy?: boolean;
-  error?: string | null;
-  /** After sending; `demoLink` only in demo mode, where no email is sent. */
-  sent: { demoLink: string | null } | null;
-}) {
-  const cardRef = useCardRef();
-  const id = useId();
-  const [value, setValue] = useState("");
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!busy && value.trim()) await onSubmit(value.trim());
-  };
-  if (sent)
-    return (
-      <CardShell ref={cardRef} title="Check your email" sub="If an account matches, we've sent a link to set a new password. It works once, for 30 minutes." onSubmit={(e) => e.preventDefault()}>
-        <div className="mt-5 flex flex-col gap-4 short:mt-4 short:gap-3">
-          <p className="flex items-start gap-3 rounded-[12px] border border-[var(--si-hairline)] px-4 py-3 text-[14px] text-[var(--si-fg-muted)]">
-            <Mail aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-[var(--si-teal)]" strokeWidth={1.75} />
-            Nothing arrived? Check spam, or ask your administrator. They can also unlock your account.
-          </p>
-          {sent.demoLink ? (
-            <Link href={sent.demoLink} className="si-btn si-btn-outline w-full">
-              <KeyRound aria-hidden="true" className="size-[18px]" strokeWidth={1.75} />
-              Open the reset link (demo: no email is sent)
-            </Link>
-          ) : null}
-          <BackLink />
-        </div>
-        <CardFoot />
-      </CardShell>
-    );
-  return (
-    <CardShell ref={cardRef} title="Forgot your password?" sub="Enter your username or email. We'll send a link to set a new one." onSubmit={submit} busy={busy}>
-      <div className="mt-5 flex flex-col gap-4 short:mt-4 short:gap-3">
-        <div className="flex flex-col gap-2">
-          <label htmlFor={`${id}-user`} className={labelClass}>
-            Username or email
-          </label>
-          <div className="si-field px-3.5" data-invalid={error ? "true" : undefined}>
-            <UserRound aria-hidden="true" className="mr-3 size-[18px] shrink-0 text-[var(--si-fg-subtle)]" strokeWidth={1.75} />
-            <input id={`${id}-user`} autoComplete="username" autoCapitalize="none" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} placeholder="name@company.com" autoFocus required />
-          </div>
-        </div>
-        <ErrorLine error={error} />
-        <Submit busy={busy} disabled={!value.trim()}>
-          Send reset link
-        </Submit>
-        <BackLink />
-      </div>
-      <CardFoot />
-    </CardShell>
-  );
-}
-
-/** Reset password from the emailed link. */
-export function ResetPasswordCard({
-  onSubmit,
-  busy,
-  error,
-  state,
-}: {
-  onSubmit: (password: string) => void | Promise<void>;
-  busy?: boolean;
-  error?: string | null;
-  state: "checking" | "valid" | "invalid" | "done";
-}) {
-  const cardRef = useCardRef();
-  const id = useId();
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState(false);
-  const mismatch = confirm.length > 0 && confirm !== next;
-  const ready = next.length >= 10 && next === confirm;
-  if (state === "invalid" || state === "done")
-    return (
-      <CardShell
-        ref={cardRef}
-        title={state === "done" ? "Password changed" : "This link has expired"}
-        sub={state === "done" ? "Sign in with your new password." : "Reset links work once, for 30 minutes. Ask for a new one."}
-        onSubmit={(e) => e.preventDefault()}
-      >
-        <div className="mt-5 flex flex-col gap-3">
-          {state === "done" ? (
-            <Link href="/" className="si-btn si-btn-primary w-full">
-              Sign in
-              <ArrowRight aria-hidden="true" className="si-arrow size-[18px]" strokeWidth={2} />
-            </Link>
-          ) : (
-            <>
-              <Link href="/forgot-password" className="si-btn si-btn-primary w-full">
-                Send a new link
-                <ArrowRight aria-hidden="true" className="si-arrow size-[18px]" strokeWidth={2} />
-              </Link>
-              <BackLink />
-            </>
-          )}
-        </div>
-        <CardFoot />
-      </CardShell>
-    );
-  const field = (key: string, label: string, value: string, set: (v: string) => void, hint?: string, invalid?: boolean) => (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={`${id}-${key}`} className={labelClass}>
-        {label}
-      </label>
-      <div className="si-field pl-3.5 pr-1" data-invalid={invalid ? "true" : undefined}>
-        <Lock aria-hidden="true" className="mr-3 size-[18px] shrink-0 text-[var(--si-fg-subtle)]" strokeWidth={1.75} />
-        <input id={`${id}-${key}`} type={show ? "text" : "password"} autoComplete="new-password" value={value} onChange={(e) => set(e.target.value)} aria-invalid={invalid || undefined} required />
-      </div>
-      {hint ? <p className={cn("text-[12px]", invalid ? "text-[var(--si-danger)]" : "text-[var(--si-fg-subtle)]")}>{hint}</p> : null}
-    </div>
-  );
-  return (
-    <CardShell
-      ref={cardRef}
-      title="Set a new password"
-      sub="Choose a password only you know."
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (!busy && ready) await onSubmit(next);
-      }}
-      busy={busy || state === "checking"}
-    >
-      <div className="mt-5 flex flex-col gap-4 short:mt-4 short:gap-3">
-        {field("next", "New password", next, setNext, "At least 10 characters.", next.length > 0 && next.length < 10)}
-        {field("confirm", "Confirm new password", confirm, setConfirm, mismatch ? "The two passwords don't match." : undefined, mismatch)}
-        <label className="flex items-center gap-2 text-[13px] text-[var(--si-fg-muted)]">
-          <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} className="size-4 accent-[var(--si-blue)]" />
-          Show passwords
-        </label>
-        <ErrorLine error={error} />
-        <Submit busy={busy} disabled={!ready || state !== "valid"}>
-          Save new password
-        </Submit>
-      </div>
-      <CardFoot />
-    </CardShell>
   );
 }
 

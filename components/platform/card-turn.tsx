@@ -36,6 +36,7 @@ export function CardTurn({
   render,
   announce,
   focusOnMount,
+  ready = true,
   exiting,
   onExited,
 }: {
@@ -48,6 +49,8 @@ export function CardTurn({
   announce: (key: string) => string;
   /** Focus the first field on first render too (a refresh on a later step). */
   focusOnMount?: boolean;
+  /** False while the first face is still being checked (its fields disabled); the first focus waits for it. */
+  ready?: boolean;
   /** Fade and scale the card away, then call `onExited`. */
   exiting?: boolean;
   onExited?: () => void;
@@ -74,11 +77,14 @@ export function CardTurn({
     setMessage(announce(key));
   };
 
+  const focusedOnMount = useRef(false);
   useEffect(() => {
-    if (focusOnMount) focusFace(faces.current);
-    // first render only
+    if (!focusOnMount || !ready || focusedOnMount.current) return;
+    focusedOnMount.current = true;
+    focusFace(faces.current);
+    // once, when the first face is ready
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready]);
 
   useLayoutEffect(() => {
     if (faces.seq === 0) return;

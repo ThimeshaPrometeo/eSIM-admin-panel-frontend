@@ -8,6 +8,8 @@ import {
   SESSION_EXPIRED,
   stepFromPath,
   stepUrl,
+  takeResetToken,
+  tokenFromLink,
   type FlowEvent,
   type FlowState,
   type LandingUser,
@@ -168,5 +170,107 @@ describe("URL", () => {
     expect(historyMode("credentials", "change-password")).toBe("replace");
     expect(historyMode("change-password", "mfa-setup")).toBe("replace");
     expect(historyMode("mfa", "credentials")).toBe("replace");
+  });
+});
+
+describe("password recovery", () => {
+  it("credentials → forgot-password turns forward; Back turns right", () => {
+    const forgot = run("credentials", { type: "forgot" });
+    expect(forgot).toMatchObject({ step: "forgot-password", dir: 1, turn: "major" });
+    expect(flowReducer(forgot, { type: "back" })).toMatchObject({ step: "credentials", dir: -1, turn: "major" });
+  });
+
+  it("forgot-password → reset-link-sent; Back from the confirmation goes to the password", () => {
+    const sent = run("credentials", { type: "forgot" }, { type: "link-sent" });
+    expect(sent).toMatchObject({ step: "reset-link-sent", dir: 1, turn: "major" });
+    expect(flowReducer(sent, { type: "back" })).toMatchObject({ step: "credentials", dir: -1 });
+    // "Send again" keeps the face
+    expect(flowReducer(sent, { type: "link-sent" })).toBe(sent);
+  });
+
+  it("reset-password → reset-done → credentials", () => {
+    const done = run("reset-password", { type: "reset-done" });
+    expect(done).toMatchObject({ step: "reset-done", dir: 1, turn: "major" });
+    expect(flowReducer(done, { type: "sign-in" })).toMatchObject({ step: "credentials", turn: "major", exiting: false });
+  });
+
+  it("a link that fails on submit turns to the expired face; 'Send a new link' turns to the form", () => {
+    const expired = run("reset-password", { type: "link-invalid" });
+    expect(expired).toMatchObject({ step: "reset-expired", turn: "major" });
+    expect(flowReducer(expired, { type: "new-link" })).toMatchObject({ step: "forgot-password", dir: 1, turn: "major" });
+    expect(flowReducer(expired, { type: "back" })).toMatchObject({ step: "credentials", dir: -1 });
+  });
+
+  it("recovery events only work on their own face", () => {
+    const pw = initialFlow("credentials");
+    for (const type of ["link-sent", "reset-done", "link-invalid", "sign-in", "new-link"] as const) expect(flowReducer(pw, { type })).toBe(pw);
+    const reset = initialFlow("reset-password");
+    expect(flowReducer(reset, { type: "back" })).toBe(reset);
+    expect(flowReducer(reset, { type: "forgot" })).toBe(reset);
+  });
+
+  it("opening the demo reset link from the confirmation turns forward", () => {
+    const opened = flowReducer(run("credentials", { type: "forgot" }, { type: "link-sent" }), { type: "restore", to: { step: "reset-password", message: null }, animate: true });
+    expect(opened).toMatchObject({ step: "reset-password", dir: 1, turn: "major" });
+  });
+
+  describe("refresh and direct visits on each face", () => {
+    const base = { status: "signed_out" as const, me: null, pendingMfa: false, skippedSetup: false };
+    it("forgot-password and its confirmation land on the form (the typed value isn't kept)", () => {
+      expect(resolveStep(stepFromPath("/forgot-password"), base)).toEqual({ step: "forgot-password", message: null });
+      expect(resolveStep("reset-link-sent", base)).toEqual({ step: "forgot-password", message: null });
+    });
+    it("reset-password needs a valid token; without one it's the expired face", () => {
+      expect(resolveStep(stepFromPath("/reset-password"), { ...base, resetToken: "valid" }).step).toBe("reset-password");
+      expect(resolveStep("reset-password", { ...base, resetToken: "invalid" }).step).toBe("reset-expired");
+      expect(resolveStep("reset-password", { ...base, resetToken: "none" }).step).toBe("reset-expired");
+    });
+    it("a refresh after the reset (token used up, gone from memory) shows the expired face", () => {
+      expect(resolveStep("reset-done", { ...base, resetToken: "none" }).step).toBe("reset-expired");
+      expect(resolveStep("reset-expired", base).step).toBe("reset-expired");
+    });
+    it("recovery works for a signed-in user too", () => {
+      const signed = { status: "signed_in" as const, me: ready, pendingMfa: false, skippedSetup: false };
+      expect(resolveStep("forgot-password", signed).step).toBe("forgot-password");
+      expect(resolveStep("reset-password", { ...signed, resetToken: "valid" }).step).toBe("reset-password");
+    });
+  });
+
+  it("URLs: the form and its confirmation share /forgot-password; reset faces share /reset-password, never with the token", () => {
+    expect(stepUrl("reset-link-sent", "/esim/dashboard")).toBe("/forgot-password");
+    expect(stepUrl("reset-password", "/esim/dashboard")).toBe("/reset-password");
+    expect(stepUrl("reset-expired", "/esim/dashboard")).toBe("/reset-password");
+    expect(historyMode("credentials", "forgot-password")).toBe("push");
+    expect(historyMode("forgot-password", "reset-link-sent")).toBe("none");
+    expect(historyMode("reset-expired", "forgot-password")).toBe("push");
+    expect(historyMode("reset-link-sent", "reset-password")).toBe("push");
+    expect(historyMode("reset-done", "credentials")).toBe("replace");
+    expect(historyMode("forgot-password", "credentials")).toBe("replace");
+  });
+});
+
+describe("reset token", () => {
+  it("is read once and removed from the address bar with replaceState", () => {
+    window.history.replaceState(null, "", "/reset-password?token=demo-u-admin-42&next=%2Fesim%2Forders");
+    const before = window.history.length;
+    expect(takeResetToken()).toBe("demo-u-admin-42");
+    expect(window.location.pathname).toBe("/reset-password");
+    expect(window.location.search).toBe("?next=%2Fesim%2Forders");
+    expect(window.location.href).not.toContain("token");
+    // replaced, not pushed: the old URL with the token isn't in history
+    expect(window.history.length).toBe(before);
+    // a second read finds nothing
+    expect(takeResetToken()).toBeNull();
+  });
+
+  it("returns null when the link has no token", () => {
+    window.history.replaceState(null, "", "/reset-password");
+    expect(takeResetToken()).toBeNull();
+    expect(window.location.pathname).toBe("/reset-password");
+  });
+
+  it("reads the token from a link (the demo email)", () => {
+    expect(tokenFromLink("/reset-password?token=abc%2B1")).toBe("abc+1");
+    expect(tokenFromLink("/reset-password")).toBeNull();
   });
 });

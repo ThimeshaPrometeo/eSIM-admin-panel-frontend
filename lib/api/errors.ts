@@ -26,6 +26,7 @@ const MESSAGES: Record<string, string> = {
   ACCOUNT_DISABLED: "This account is disabled. Ask your administrator.",
   INVALID_CODE: "That code isn't right. Check your authenticator app and try again.",
   MFA_LOCKED: "Too many wrong codes. Wait a few minutes, then try again.",
+  RATE_LIMITED: "Too many requests. Wait a few minutes, then try again.",
   PASSWORD_TOO_SHORT: "Use at least 10 characters.",
   FORBIDDEN: "You don't have access to this.",
   NOT_FOUND: "We couldn't find that. It may have been removed, or it's outside your access.",

@@ -18,12 +18,19 @@ Roles: **A** admin, **S** staff (limited by staff role), **R** reseller, **As** 
 | `/invite` | 8.24, 8.31 | public | `?token=` | `checkInvitation`, `acceptInvitation`, then `/login/setup-2fa?invite=1` | `InvitationCard` | yes (decisions 2026-11-23) |
 | `/reset-password` | 8.31 | public | `?token=` | `resetPassword` | | yes (Phase 7) |
 
-`/`, `/login/2fa`, `/login/change-password` and `/login/setup-2fa` live in the route group `app/(sign-in)/`. Its
+`/`, `/login/2fa`, `/login/change-password`, `/login/setup-2fa`, `/forgot-password` and `/reset-password` live in
+the route group `app/(sign-in)/`. Its
 layout renders one card (`sign-in-flow-client.tsx`, step machine in `lib/platform/sign-in-flow.ts`) that turns in 3D
 between steps; the pages only set the title. The URL follows the step with `history.pushState` / `replaceState` (only
 password → code adds an entry, so Back turns the card back), and the globe never remounts. A direct visit or refresh
 lands on the URL's step if the server agrees; the code step without a live 2FA challenge returns to the password with
 a short message.
+
+Password recovery uses the same card: `/forgot-password` (form, then the "Check your email" face, same URL) and
+`/reset-password` (new password, "Password updated", or "This link has expired"). The `?token=` is read once on load,
+kept in memory only and removed from the address bar with `history.replaceState`; a refresh after that shows the
+expired face. Asking for a link takes at least 900 ms and answers the same whether or not the account exists. In
+demo mode the "email" is a toast with an "Open reset link" action that opens the link inside the card.
 
 ## 2. Workspace (`app/esim/*`, inside `AppShell`)
 

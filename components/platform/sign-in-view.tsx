@@ -18,7 +18,6 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, Fingerprint, Gauge, Globe2, Lock, R
 import { cn } from "@/lib/utils";
 import { damp } from "@/lib/design/motion";
 import { activityFlag, activityText, type ActivityEvent } from "@/lib/platform/activity";
-import { LogoMark } from "./logo-mark";
 import { CountUp } from "./motion/count-up";
 import { OtpInput, type OtpInputHandle } from "./otp-input";
 import { useReducedMotion } from "./motion/use-reduced-motion";
@@ -114,8 +113,8 @@ type Projection = { x: number; y: number; visible: boolean };
  * into the card. Below 1024px the globe moves behind the content at 40% and a
  * slim live ticker replaces the chips. Follows the app theme (dark or light).
  *
- * Brand: the logo mark only, until tenant settings (white-label) supply a name
- * and logo. `embedded` sizes it to its container (design-system page).
+ * No logo or brand name on this page. `embedded` sizes it to its container
+ * (design-system page).
  */
 const CardRefContext = createContext<RefObject<HTMLElement | null> | undefined>(undefined);
 /** The card's ref (the signal from the globe lands on it); undefined inside a `CardTurn`, whose wrapper takes it. */
@@ -681,6 +680,7 @@ export function SignInCard({
   ref,
   onSubmit,
   onPasskey,
+  onForgot,
   forgotHref = "/forgot-password",
   busy,
   error,
@@ -690,6 +690,8 @@ export function SignInCard({
   /** Resolve `true` when the password was accepted. */
   onSubmit?: (values: SignInValues) => void | boolean | Promise<void | boolean>;
   onPasskey?: () => void;
+  /** Turn the card to the forgot-password face instead of following the link. */
+  onForgot?: () => void;
   forgotHref?: string;
   busy?: boolean;
   error?: string | null;
@@ -741,7 +743,16 @@ export function SignInCard({
             <label htmlFor={`${id}-pass`} className={labelClass}>
               {c.password}
             </label>
-            <a href={forgotHref} className={linkClass}>
+            <a
+              href={forgotHref}
+              className={linkClass}
+              onClick={(e) => {
+                // a plain click turns the card; a new tab or window still follows the link
+                if (!onForgot || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                onForgot();
+              }}
+            >
               {c.forgot}
             </a>
           </div>
@@ -1049,13 +1060,9 @@ export function Spinner() {
 
 // ------------------------------------------------------------- top / bottom --
 
+/** No logo on the sign-in page; the empty bar keeps the content where it was. */
 function TopBar() {
-  return (
-    <header className="si-enter relative z-10 flex h-[72px] shrink-0 items-center px-6 short:h-16 tiny:h-14 sm:px-10 lg:px-16" style={{ "--i": 0 } as CSSProperties}>
-      {/* the logo mark only; the brand name and logo come from tenant settings later (white-label) */}
-      <LogoMark />
-    </header>
-  );
+  return <div aria-hidden="true" className="relative z-10 h-[72px] shrink-0 short:h-16 tiny:h-14" />;
 }
 
 function Footer({ systemStatus }: { systemStatus?: "operational" | null }) {

@@ -1,10 +1,11 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { SetupTwoFactorCard } from "@/components/platform/auth-cards";
 import { CardTurn } from "@/components/platform/card-turn";
+import { ForgotPasswordFace, RESEND_SECONDS, ResetDoneFace, ResetExpiredFace, ResetLinkSentFace, ResetPasswordFace } from "@/components/platform/recovery-cards";
 import { ChangePasswordCard, CodeCard, DetachedCardRef, SignInCard, SignInView, useCardRef, type TwoFactorValues } from "@/components/platform/sign-in-view";
 import { usePlatform } from "@/contexts/platform-context";
 import { useResource } from "@/hooks/use-resource";
@@ -15,6 +16,7 @@ import {
   flowReducer,
   historyMode,
   initialFlow,
+  isRecoveryStep,
   landingStep,
   nextPath,
   resolveStep,
@@ -24,12 +26,26 @@ import {
   STEP_TITLE,
   stepFromPath,
   stepUrl,
+  takeResetToken,
+  tokenFromLink,
   type SignInStep,
 } from "@/lib/platform/sign-in-flow";
 import { skippedTwoFactor, skipTwoFactor } from "@/lib/platform/two-factor";
 import { SIGN_IN_DATA } from "../sign-in-shared";
 
 const isCode = (s: SignInStep) => s === "mfa" || s === "recovery";
+const isResetStep = (s: SignInStep) => s === "reset-password" || s === "reset-done" || s === "reset-expired";
+
+/**
+ * Asking for a reset link always takes at least this long, so the answer
+ * time doesn't hint whether the account exists.
+ */
+const RESET_REQUEST_MIN_MS = 900;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const tryAgainIn = (seconds: number) => {
+  const m = Math.max(1, Math.ceil(seconds / 60));
+  return `Too many requests. Try again in ${m} minute${m === 1 ? "" : "s"}.`;
+};
 
 /**
  * The whole sign-in as one card (spec 8.31): password → code (or recovery
@@ -39,7 +55,7 @@ const isCode = (s: SignInStep) => s === "mfa" || s === "recovery";
  * background never remount.
  */
 export function SignInFlowClient() {
-  const { status, me, signIn, signInWithPasskey, verifyMfa, changePassword, reloadMe } = usePlatform();
+  const { status, me, isDemo, signIn, signInWithPasskey, verifyMfa, changePassword, reloadMe } = usePlatform();
   const router = useRouter();
   const params = useSearchParams();
   const next = nextPath(params.get("next"));
@@ -56,18 +72,43 @@ export function SignInFlowClient() {
   const leaving = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [lock, setLock] = useState<{ until: number; minutes: number } | null>(null);
-  /** We added the code step's history entry, so "Back to sign in" can simply go back. */
-  const pushedCode = useRef(false);
+  /** We added a history entry right above the password face, so "Back to sign in" can simply go back. */
+  const pushedOverCredentials = useRef(false);
   const lastStep = useRef<SignInStep>(urlStep);
+
+  // ---- password recovery: what was typed (for the confirmation and "Send again") and the reset token, in memory only
+  const [identifier, setIdentifier] = useState("");
+  const [resendAt, setResendAt] = useState(0);
+  const resetToken = useRef<string | null | undefined>(undefined);
+  const tokenState = useRef<"valid" | "invalid" | "none">("none");
+
+  // the token leaves the address bar before anything else runs (and before anyone can copy the URL)
+  useLayoutEffect(() => {
+    if (resetToken.current === undefined && isResetStep(urlStep)) resetToken.current = takeResetToken();
+  }, [urlStep]);
+
+  const checkToken = async (token: string | null | undefined) => {
+    const valid = token ? await authApi.checkResetToken(token).then((r) => r.valid, () => false) : false;
+    tokenState.current = valid ? "valid" : token ? "invalid" : "none";
+    return tokenState.current;
+  };
 
   // ---- first load (or refresh): where does this URL really land?
   useEffect(() => {
-    if (resolved || status === "loading") return;
+    // password recovery doesn't wait for the session
+    if (resolved || (status === "loading" && !isRecoveryStep(urlStep))) return;
     let live = true;
     void (async () => {
       const pendingMfa = status === "signed_out" && isCode(urlStep) ? await authApi.hasPendingMfa().catch(() => false) : false;
+      const resetTokenState = isResetStep(urlStep) ? await checkToken(resetToken.current) : "none";
       if (!live) return;
-      const to = resolveStep(urlStep, { status, me, pendingMfa, skippedSetup: !!me && skippedTwoFactor(me.id) });
+      const to = resolveStep(urlStep, {
+        status: status === "signed_in" ? "signed_in" : "signed_out",
+        me,
+        pendingMfa,
+        skippedSetup: !!me && skippedTwoFactor(me.id),
+        resetToken: resetTokenState,
+      });
       dispatch({ type: "restore", to, animate: false });
       if (to.step !== "workspace" && STEP_PATH[to.step] !== window.location.pathname) window.history.replaceState(null, "", stepUrl(to.step, next, invite));
       lastStep.current = to.step === "workspace" ? lastStep.current : to.step;
@@ -89,7 +130,7 @@ export function SignInFlowClient() {
     const url = stepUrl(flow.step, next, invite);
     if (mode === "push") {
       window.history.pushState(null, "", url);
-      pushedCode.current = true;
+      pushedOverCredentials.current = from === "credentials";
     } else window.history.replaceState(null, "", url);
     // only when the step changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,12 +145,18 @@ export function SignInFlowClient() {
     const onPop = async () => {
       const target = stepFromPath(window.location.pathname);
       const c = ctx.current;
-      if (c.status === "loading") return;
+      if (c.status === "loading" && !isRecoveryStep(target)) return;
       const pendingMfa = c.status === "signed_out" && isCode(target) ? await authApi.hasPendingMfa().catch(() => false) : false;
-      const to = resolveStep(target, { status: c.status, me: c.me, pendingMfa, skippedSetup: !!c.me && skippedTwoFactor(c.me.id) });
+      const to = resolveStep(target, {
+        status: c.status === "signed_in" ? "signed_in" : "signed_out",
+        me: c.me,
+        pendingMfa,
+        skippedSetup: !!c.me && skippedTwoFactor(c.me.id),
+        resetToken: tokenState.current,
+      });
       if (to.step !== "workspace" && STEP_PATH[to.step] !== window.location.pathname) window.history.replaceState(null, "", stepUrl(to.step, c.next, c.invite));
       if (to.step !== "workspace") lastStep.current = to.step;
-      if (to.step === "credentials") pushedCode.current = false;
+      if (to.step === "credentials") pushedOverCredentials.current = false;
       setError(null);
       dispatch({ type: "restore", to, animate: true });
     };
@@ -195,7 +242,7 @@ export function SignInFlowClient() {
         else if (e instanceof ApiError && e.code === "UNAUTHENTICATED") {
           // the server's challenge expired: start again from the password
           dispatch({ type: "restore", to: { step: "credentials", message: SESSION_EXPIRED }, animate: true });
-          pushedCode.current = false;
+          pushedOverCredentials.current = false;
         } else setError(errorMessage(e));
         return false;
       }
@@ -206,7 +253,7 @@ export function SignInFlowClient() {
   const onBack = () => {
     setError(null);
     // our own history entry: Back pops it and the popstate handler turns the card
-    if (pushedCode.current) window.history.back();
+    if (pushedOverCredentials.current) window.history.back();
     else dispatch({ type: "back" });
   };
 
@@ -221,6 +268,61 @@ export function SignInFlowClient() {
       }
     });
 
+  // ---- password recovery
+  /** Opens a reset link inside the card: the token stays in memory and never reaches the address bar. */
+  const openResetLink = async (link: string) => {
+    if (leaving.current) return;
+    const token = tokenFromLink(link);
+    resetToken.current = token;
+    const state = await checkToken(token);
+    setError(null);
+    dispatch({ type: "restore", to: { step: state === "valid" ? "reset-password" : "reset-expired", message: null }, animate: true });
+  };
+
+  const sendLink = (value: string) =>
+    void run(async () => {
+      const started = Date.now();
+      try {
+        const r = await authApi.forgotPassword({ identifier: value });
+        await wait(RESET_REQUEST_MIN_MS - (Date.now() - started));
+        setIdentifier(value);
+        setResendAt(Date.now() + RESEND_SECONDS * 1000);
+        dispatch({ type: "link-sent" });
+        // demo mode has no email: the "email" is a toast with the link
+        if (isDemo)
+          toast("Demo email", {
+            description: r.demoLink ? `A reset link for ${value}. No email is sent in demo mode.` : `No account matches ${value}, so no email would be sent. Shown in demo mode only.`,
+            action: r.demoLink ? { label: "Open reset link", onClick: () => void openResetLink(r.demoLink!) } : undefined,
+            duration: 30000,
+          });
+      } catch (e) {
+        await wait(RESET_REQUEST_MIN_MS - (Date.now() - started));
+        const secs = retryAfterSeconds(e);
+        setError(secs ? tryAgainIn(secs) : errorMessage(e));
+      }
+    });
+
+  const onResetPassword = (password: string) =>
+    void run(async () => {
+      try {
+        await authApi.resetPassword({ token: resetToken.current ?? "", newPassword: password });
+        // the link is used up; the server signed this user out everywhere
+        resetToken.current = null;
+        tokenState.current = "invalid";
+        await reloadMe().catch(() => null);
+        dispatch({ type: "reset-done" });
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "RESET_LINK_EXPIRED") {
+          resetToken.current = null;
+          tokenState.current = "invalid";
+          dispatch({ type: "link-invalid" });
+          return;
+        }
+        const secs = retryAfterSeconds(e);
+        setError(secs ? tryAgainIn(secs) : errorMessage(e));
+      }
+    });
+
   const face = (key: string): ReactNode => {
     const step = key as SignInStep;
     const active = step === flow.step;
@@ -231,6 +333,10 @@ export function SignInFlowClient() {
           <SignInCard
             onSubmit={onPassword}
             onPasskey={onPasskey}
+            onForgot={() => {
+              setError(null);
+              dispatch({ type: "forgot" });
+            }}
             busy={active && busy}
             error={err}
             notice={
@@ -260,6 +366,31 @@ export function SignInFlowClient() {
         );
       case "change-password":
         return <ChangePasswordCard onSubmit={onChangePassword} busy={active && busy} error={err} />;
+      case "forgot-password":
+        return <ForgotPasswordFace initialValue={identifier} onSubmit={sendLink} onBack={onBack} busy={active && busy} error={err} />;
+      case "reset-link-sent":
+        return <ResetLinkSentFace identifier={identifier} resendAt={resendAt} onResend={() => sendLink(identifier)} onBack={onBack} busy={active && busy} error={err} />;
+      case "reset-password":
+        return <ResetPasswordFace onSubmit={onResetPassword} busy={active && busy} error={err} checking={!resolved} />;
+      case "reset-done":
+        return (
+          <ResetDoneFace
+            onSignIn={() => {
+              setError(null);
+              dispatch({ type: "sign-in" });
+            }}
+          />
+        );
+      case "reset-expired":
+        return (
+          <ResetExpiredFace
+            onNewLink={() => {
+              setError(null);
+              dispatch({ type: "new-link" });
+            }}
+            onBack={onBack}
+          />
+        );
       case "mfa-setup":
         return (
           <SetupFace
@@ -279,7 +410,7 @@ export function SignInFlowClient() {
       countryCount={SIGN_IN_DATA.countryCount}
       events={SIGN_IN_DATA.events}
       systemStatus={SIGN_IN_DATA.systemStatus}
-      tall={flow.step === "mfa-setup"}
+      tall={flow.step === "mfa-setup" || flow.step === "reset-password"}
       leaving={flow.exiting}
       card={
         <TurningCard
@@ -287,6 +418,7 @@ export function SignInFlowClient() {
           turn={{ kind: flow.turn, dir: flow.dir }}
           render={face}
           focusOnMount={urlStep !== "credentials"}
+          ready={resolved}
           exiting={flow.exiting}
           onExited={onExited}
         />

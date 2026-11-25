@@ -10,6 +10,16 @@ import type { Me, Role } from "@/lib/platform/types";
 export const MFA_MAX_ATTEMPTS = 5;
 export const MFA_LOCK_MINUTES = 5;
 
+/** Reset links work once, for an hour. At most 5 requests per 15 minutes from this browser (whatever was typed). */
+export const RESET_LINK_MINUTES = 60;
+export const RESET_REQUESTS_PER_WINDOW = 5;
+const RESET_WINDOW_MS = 15 * 60000;
+let resetRequests: number[] = [];
+/** Tests: forget earlier reset requests. */
+export function __resetForgotPasswordLimit() {
+  resetRequests = [];
+}
+
 export type LoginResult = { mfaRequired: true; methods: ("totp" | "recovery")[] } | { mfaRequired: false; me: Me };
 
 /** The demo user behind each role in the role switcher (demo-data.md §3). */
@@ -89,18 +99,24 @@ export const demoAuth = {
     }),
   /**
    * "Forgot password": always the same answer, so it never reveals whether an
-   * account exists. Demo mode returns the link instead of emailing it.
+   * account exists (the rate limit counts requests, not accounts). Demo mode
+   * returns the link instead of emailing it.
    */
   forgotPassword: (input: { identifier: string }) =>
     write((): { sent: true; demoLink: string | null } => {
       const s = db();
       const key = input.identifier.trim().toLowerCase();
       if (!key) throw new ApiError(400, "IDENTIFIER_REQUIRED", "Enter your username or email.");
+      const now = Date.now();
+      resetRequests = resetRequests.filter((t) => t > now - RESET_WINDOW_MS);
+      if (resetRequests.length >= RESET_REQUESTS_PER_WINDOW)
+        throw new ApiError(429, "RATE_LIMITED", undefined, { retryAfterSeconds: Math.ceil((resetRequests[0]! + RESET_WINDOW_MS - now) / 1000) });
+      resetRequests.push(now);
       const u = s.users.find((x) => x.username === key || x.email.toLowerCase() === key);
       // unknown, disabled or still invited (they use their invitation): the same answer, no link
       if (!u || u.status !== "active" || u.invitePending) return { sent: true, demoLink: null };
       const token = `demo-${u.id}-${++s.seq}`;
-      s.resetTokens = [...s.resetTokens.filter((t) => t.userId !== u.id), { token, userId: u.id, expiresAt: new Date(Date.now() + 30 * 60000).toISOString() }];
+      s.resetTokens = [...s.resetTokens.filter((t) => t.userId !== u.id), { token, userId: u.id, expiresAt: new Date(Date.now() + RESET_LINK_MINUTES * 60000).toISOString() }];
       return { sent: true, demoLink: `/reset-password?token=${encodeURIComponent(token)}` };
     }),
   checkResetToken: (token: string) =>
@@ -108,7 +124,10 @@ export const demoAuth = {
       const t = db().resetTokens.find((x) => x.token === token);
       return { valid: !!t && t.expiresAt > nowIso() };
     }),
-  /** A new password from a reset link; it also lifts a lock. */
+  /**
+   * A new password from a reset link; it also lifts a lock and signs the user
+   * out everywhere. Two-factor stays on: the next sign-in still asks for a code.
+   */
   resetPassword: (input: { token: string; newPassword: string }) =>
     write(() => {
       const s = db();
@@ -120,6 +139,8 @@ export const demoAuth = {
       u.locked = false;
       u.lockedUntil = null;
       s.resetTokens = s.resetTokens.filter((x) => x.token !== input.token);
+      // signed out on all devices (the demo has one session)
+      if (s.session.userId === u.id || s.session.pendingMfaUserId === u.id) s.session = { userId: null, pendingMfaUserId: null };
       s.audit.unshift({ id: `a${++s.seq}`, actorId: u.id, action: "auth.password_reset", entityType: "user", entityId: u.id, summary: `${u.fullName} set a new password with a reset link`, resellerId: u.resellerId, createdAt: nowIso(), ip: demoIp(u.id), changes: null });
     }),
   /** An invitation link: who it's for, or why it can't be used. */
